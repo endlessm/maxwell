@@ -1,0 +1,98 @@
+/* eos-web-view-version.h.in
+ *
+ * Copyright (C) 2018 Endless Mobile, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+ */
+
+#ifndef EOS_WEB_VIEW_VERSION_H
+#define EOS_WEB_VIEW_VERSION_H
+
+#if !defined(EOS_WEB_VIEW_INSIDE) && !defined(EOS_WEB_VIEW_COMPILATION)
+# error "Only <eos-web-view.h> can be included directly."
+#endif
+
+/**
+ * SECTION:eos-web-viewversion
+ * @short_description: eos-web-view version checking
+ *
+ * eos-web-view provides macros to check the version of the library
+ * at compile-time
+ */
+
+/**
+ * EOS_WEB_VIEW_MAJOR_VERSION:
+ *
+ * eos-web-view major version component (e.g. 1 if %EOS_WEB_VIEW_VERSION is 1.2.3)
+ */
+#define EOS_WEB_VIEW_MAJOR_VERSION (@MAJOR_VERSION@)
+
+/**
+ * EOS_WEB_VIEW_MINOR_VERSION:
+ *
+ * eos-web-view minor version component (e.g. 2 if %EOS_WEB_VIEW_VERSION is 1.2.3)
+ */
+#define EOS_WEB_VIEW_MINOR_VERSION (@MINOR_VERSION@)
+
+/**
+ * EOS_WEB_VIEW_MICRO_VERSION:
+ *
+ * eos-web-view micro version component (e.g. 3 if %EOS_WEB_VIEW_VERSION is 1.2.3)
+ */
+#define EOS_WEB_VIEW_MICRO_VERSION (@MICRO_VERSION@)
+
+/**
+ * EOS_WEB_VIEW_VERSION
+ *
+ * eos-web-view version.
+ */
+#define EOS_WEB_VIEW_VERSION (@VERSION@)
+
+/**
+ * EOS_WEB_VIEW_VERSION_S:
+ *
+ * eos-web-view version, encoded as a string, useful for printing and
+ * concatenation.
+ */
+#define EOS_WEB_VIEW_VERSION_S "@VERSION@"
+
+#define EOS_WEB_VIEW_ENCODE_VERSION(major,minor,micro) \
+        ((major) << 24 | (minor) << 16 | (micro) << 8)
+
+/**
+ * EOS_WEB_VIEW_VERSION_HEX:
+ *
+ * eos-web-view version, encoded as an hexadecimal number, useful for
+ * integer comparisons.
+ */
+#define EOS_WEB_VIEW_VERSION_HEX \
+        (EOS_WEB_VIEW_ENCODE_VERSION (EOS_WEB_VIEW_MAJOR_VERSION, EOS_WEB_VIEW_MINOR_VERSION, EOS_WEB_VIEW_MICRO_VERSION))
+
+/**
+ * EOS_WEB_VIEW_CHECK_VERSION:
+ * @major: required major version
+ * @minor: required minor version
+ * @micro: required micro version
+ *
+ * Compile-time version checking. Evaluates to %TRUE if the version
+ * of eos-web-view is greater than the required one.
+ */
+#define EOS_WEB_VIEW_CHECK_VERSION(major,minor,micro)   \
+        (EOS_WEB_VIEW_MAJOR_VERSION > (major) || \
+         (EOS_WEB_VIEW_MAJOR_VERSION == (major) && EOS_WEB_VIEW_MINOR_VERSION > (minor)) || \
+         (EOS_WEB_VIEW_MAJOR_VERSION == (major) && EOS_WEB_VIEW_MINOR_VERSION == (minor) && \
+          EOS_WEB_VIEW_MICRO_VERSION >= (micro)))
+
+#endif /* EOS_WEB_VIEW_VERSION_H */
