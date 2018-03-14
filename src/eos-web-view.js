@@ -29,42 +29,26 @@ window.eos_web_view = {}
 /* List of children */
 window.eos_web_view.children = {}
 
-function update_root_position (id) {
-    let canvas = window.eos_web_view.children[id];
-    let e = canvas;
-    let root_x = 0;
-    let root_y = 0;
-
-    while (e) {
-        if (e.tagName == "BODY") {
-            let scroll_x = e.scrollLeft || document.documentElement.scrollLeft;
-            let scroll_y = e.scrollTop || document.documentElement.scrollTop;
-            root_x += e.offsetLeft - scroll_x + e.clientLeft;
-            root_y += e.offsetTop - scroll_y + e.clientTop;
-        } else {
-            root_x += e.offsetLeft - e.scrollLeft + e.clientLeft;
-            root_y += e.offsetTop - e.scrollTop + e.clientTop;
-        }
-      e = e.offsetParent;
-    }
-
-    /* Bail if position did not changed */
-    if (canvas.hasOwnProperty ('eos_position')) {
-        let old_pos = canvas.eos_position;
-        if (old_pos && old_pos.x === root_x && old_pos.y === root_y)
-            return;
-    }
-
-    /* Update position in cache */
-    canvas.eos_position = { x: root_x, y: root_y };
-
-    /* Update position in EosWebView */
-    window.webkit.messageHandlers.position.postMessage({ id: id, x: root_x, y: root_y });
-}
-
 function update_positions () {
-    for (var id in window.eos_web_view.children)
-        update_root_position (id);
+    let children = window.eos_web_view.children;
+
+    for (var id in children) {
+        let canvas = children[id];
+        let rect = canvas.getBoundingClientRect();
+        let x = rect.x;
+        let y = rect.y;
+
+        /* Bail if position did not changed */
+        if (canvas.eos_position_x === x && canvas.eos_position_y === y)
+            return;
+
+        /* Update position in cache */
+        canvas.eos_position_x = x;
+        canvas.eos_position_y = y;
+
+        /* Update position in EosWebView */
+        window.webkit.messageHandlers.position.postMessage({ id: id, x: x, y: y });
+    }
 }
 
 window.addEventListener("scroll", update_positions, false);
@@ -72,7 +56,6 @@ window.addEventListener("resize", update_positions, false);
 
 window.addEventListener('load', () => {
     var elements = document.getElementsByClassName('EosWebViewChild');
-    let allocate = false;
 
     /* Initialize all EknWebViewCanvas elements */
     for (let i = 0, len = elements.length; i < len; i++) {
@@ -83,13 +66,11 @@ window.addEventListener('load', () => {
 
         /* Keep a reference in a hash table for quick access */
         eos_web_view.children[canvas.id] = canvas;
-
-        update_root_position(canvas.id);
-        allocate = true;
     }
 
-    if (allocate)
-        window.webkit.messageHandlers.allocate.postMessage({});
+    update_positions();
+
+    window.webkit.messageHandlers.allocate.postMessage({});
 });
 
 /* Semi public function to update widget surface */
@@ -100,7 +81,7 @@ window.eos_web_view.update_canvas = function (id, width, height) {
     canvas.width = width;
     canvas.height = height;
 
-    /* TODO: can we use texture_from_pixmap with WebGL? */
+    /* Unfortunatelly WebGL does not support texture_from_pixmap */
 
     /* Get image data */
     let xhr = new XMLHttpRequest();
@@ -110,7 +91,6 @@ window.eos_web_view.update_canvas = function (id, width, height) {
     try {
         xhr.send();
     } catch (error) {
-        console.error (error);
         return;
     }
 
