@@ -584,13 +584,6 @@ eos_web_view_unrealize (GtkWidget *widget)
   GTK_WIDGET_CLASS (eos_web_view_parent_class)->unrealize (widget);
 }
 
-static void
-eos_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
-{
-  children_update_allocation (EOS_WEB_VIEW (widget));
-  GTK_WIDGET_CLASS (eos_web_view_parent_class)->size_allocate (widget, allocation);
-}
-
 static gboolean
 eos_web_view_draw (GtkWidget *widget, cairo_t *cr)
 {
@@ -655,7 +648,6 @@ eos_web_view_class_init (EosWebViewClass *klass)
 
   widget_class->realize = eos_web_view_realize;
   widget_class->unrealize = eos_web_view_unrealize;
-  widget_class->size_allocate = eos_web_view_size_allocate;
   widget_class->draw = eos_web_view_draw;
 
   container_class->add = eos_web_view_add;
