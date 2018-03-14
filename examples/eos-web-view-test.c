@@ -25,62 +25,33 @@
 #include "eos-web-view.h"
 
 static void
-on_button_clicked (GtkWidget *button)
+on_button_clicked (GtkWidget *button, GtkLabel *label)
 {
   g_message ("%s", __func__);
-}
-
-gboolean
-on_button_press_event (GtkWidget *widget, GdkEventButton *event, gpointer user_data)
-{
-  g_message ("%s %s %dx%d", __func__, G_OBJECT_TYPE_NAME (widget),
-             (gint)event->x, (gint)event->y);
-  return FALSE;
-}
-
-gboolean
-on_button_release_event (GtkWidget *widget, GdkEventButton *event, gpointer user_data)
-{
-  g_message ("%s %s %dx%d", __func__, G_OBJECT_TYPE_NAME (widget),
-             (gint)event->x, (gint)event->y);
-  return FALSE;
-}
-
-gboolean
-on_enter_notify_event (GtkWidget *widget, GdkEventCrossing *event, gpointer user_data)
-{
-  g_message ("%s %s %dx%d", __func__, G_OBJECT_TYPE_NAME (widget),
-             (gint)event->x, (gint)event->y);
-  return FALSE;
-}
-
-gboolean
-on_leave_notify_event (GtkWidget *widget, GdkEventCrossing *event, gpointer user_data)
-{
-  g_message ("%s %s %dx%d", __func__, G_OBJECT_TYPE_NAME (widget),
-             (gint)event->x, (gint)event->y);
-  return FALSE;
-}
-
-gboolean
-on_motion_notify_event (GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
-{
-  g_message ("%s %s %dx%d", __func__, G_OBJECT_TYPE_NAME (widget),
-             (gint)event->x, (gint)event->y);
-  return FALSE;
 }
 
 int
 main (int argc, char *argv[])
 {
-  GtkWidget *window, *webview, *button;
+  GtkWidget *window;
+  GtkWidget *webview;
+  GtkWidget *button;
+  GtkWidget *entry;
 
   gtk_init (&argc, &argv);
 
   window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_default_size (GTK_WINDOW (window), 480, 640);
   g_signal_connect (window, "delete-event", G_CALLBACK (gtk_main_quit), NULL);
 
   webview = eos_web_view_new ();
+
+  entry = gtk_entry_new ();
+  button = gtk_button_new_with_label ("A button inside an EosWebView");
+  g_signal_connect (button, "clicked", G_CALLBACK (on_button_clicked), NULL);
+
+  eos_web_view_pack_child (EOS_WEB_VIEW (webview), button, "button");
+  eos_web_view_pack_child (EOS_WEB_VIEW (webview), entry, "entry");
 
   gtk_container_add (GTK_CONTAINER (window), webview);
   gtk_widget_show_all (window);
@@ -88,26 +59,24 @@ main (int argc, char *argv[])
   webkit_web_view_load_html (WEBKIT_WEB_VIEW (webview),
                              "<html>"
                              "  <h1>EosWebview Test</h1>"
+                             "Lorem ipsum dolor sit amet, consectetur adipiscing elit,<br>"
+                             "  <h2>A GtkButton</h2>"
                              "   <canvas class=\"EosWebViewChild\" id=\"button\"></canvas>"
+                             "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.<br>"
+                             "  <h2>A GtkEntry</h2>"
+                             "   <canvas class=\"EosWebViewChild\" id=\"entry\"></canvas>"
+                             "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.<br>"
+                             "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.<br>"
+                             "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.<br>"
+                             "<br>"
+                             "Lorem ipsum dolor sit amet, consectetur adipiscing elit,<br>"
+                             "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.<br>"
+                             "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.<br>"
+                             "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.<br>"
+                             "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.<br>"
+                             "<br>"
                              "</html>",
                              "file://");
-
-  while (webkit_web_view_is_loading (WEBKIT_WEB_VIEW (webview)))
-    gtk_main_iteration_do (FALSE);
-
-  button = gtk_button_new_with_label ("A button inside an EosWebView");
-  g_signal_connect (button, "clicked", G_CALLBACK (on_button_clicked), NULL);
-  g_signal_connect (button, "enter-notify-event", G_CALLBACK (on_enter_notify_event), NULL);
-  g_signal_connect (button, "leave-notify-event", G_CALLBACK (on_leave_notify_event), NULL);
-  g_signal_connect (button, "button-press-event", G_CALLBACK (on_button_press_event), NULL);
-  g_signal_connect (button, "button-release-event", G_CALLBACK (on_button_release_event), NULL);
-  g_signal_connect (button, "motion-notify-event", G_CALLBACK (on_motion_notify_event), NULL);
-
-  gtk_container_add (GTK_CONTAINER (webview), button);
-  gtk_container_child_set (GTK_CONTAINER (webview), button,
-                           "canvas-id", "button",
-                          NULL);
-  gtk_widget_show_all (button);
 
   gtk_main();
 

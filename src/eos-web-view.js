@@ -29,128 +29,53 @@ window.eos_web_view = {}
 /* List of children */
 window.eos_web_view.children = {}
 
-var lastState = 0;
+function update_root_position (id) {
+    let canvas = window.eos_web_view.children[id];
+    let e = canvas;
+    let root_x = 0;
+    let root_y = 0;
 
-/* GdkModifierType */
-var GDK_SHIFT_MASK    = 1 << 0;
-var GDK_LOCK_MASK     = 1 << 1;
-var GDK_CONTROL_MASK  = 1 << 2;
-var GDK_MOD1_MASK     = 1 << 3;
-var GDK_MOD2_MASK     = 1 << 4;
-var GDK_MOD3_MASK     = 1 << 5;
-var GDK_MOD4_MASK     = 1 << 6;
-var GDK_MOD5_MASK     = 1 << 7;
-var GDK_BUTTON1_MASK  = 1 << 8;
-var GDK_BUTTON2_MASK  = 1 << 9;
-var GDK_BUTTON3_MASK  = 1 << 10;
-var GDK_BUTTON4_MASK  = 1 << 11;
-var GDK_BUTTON5_MASK  = 1 << 12;
-var GDK_SUPER_MASK    = 1 << 26;
-var GDK_HYPER_MASK    = 1 << 27;
-var GDK_META_MASK     = 1 << 28;
-var GDK_RELEASE_MASK  = 1 << 30;
+    while (e) {
+        if (e.tagName == "BODY") {
+            let scroll_x = e.scrollLeft || document.documentElement.scrollLeft;
+            let scroll_y = e.scrollTop || document.documentElement.scrollTop;
+            root_x += e.offsetLeft - scroll_x + e.clientLeft;
+            root_y += e.offsetTop - scroll_y + e.clientTop;
+        } else {
+            root_x += e.offsetLeft - e.scrollLeft + e.clientLeft;
+            root_y += e.offsetTop - e.scrollTop + e.clientTop;
+        }
+      e = e.offsetParent;
+    }
 
-function getButtonMask (button) {
-    if (button == 1)
-        return GDK_BUTTON1_MASK;
-    if (button == 2)
-        return GDK_BUTTON2_MASK;
-    if (button == 3)
-        return GDK_BUTTON3_MASK;
-    if (button == 4)
-        return GDK_BUTTON4_MASK;
-    if (button == 5)
-        return GDK_BUTTON5_MASK;
-    return 0;
+    /* Bail if position did not changed */
+    if (canvas.hasOwnProperty ('eos_position')) {
+        let old_pos = canvas.eos_position;
+        if (old_pos && old_pos.x === root_x && old_pos.y === root_y)
+            return;
+    }
+
+    /* Update position in cache */
+    canvas.eos_position = { x: root_x, y: root_y };
+
+    /* Update position in EosWebView */
+    window.webkit.messageHandlers.position.postMessage({ id: id, x: root_x, y: root_y });
 }
 
-function updateForEvent(event) {
-    lastState &= ~(GDK_SHIFT_MASK|GDK_CONTROL_MASK|GDK_MOD1_MASK);
-    if (event.shiftKey)
-        lastState |= GDK_SHIFT_MASK;
-    if (event.ctrlKey)
-        lastState |= GDK_CONTROL_MASK;
-    if (event.altKey)
-        lastState |= GDK_MOD1_MASK;
+function update_positions () {
+    for (var id in window.eos_web_view.children)
+        update_root_position (id);
 }
 
-/* GdkEventCrossing GDK_ENTER_NOTIFY  */
-function on_canvas_mouse_over (event) {
-    updateForEvent (event);
+window.addEventListener("scroll", update_positions, false);
+window.addEventListener("resize", update_positions, false);
 
-    window.webkit.messageHandlers[event.target.id + "_crossing"].postMessage({
-        enter: true,
-        time: event.timeStamp,
-        state: lastState,
-        x: event.offsetX,
-        y: event.offsetY
-    });
-}
-
-/* GdkEventCrossing GDK_LEAVE_NOTIFY */
-function on_canvas_mouse_out (event) {
-    updateForEvent (event);
-
-    window.webkit.messageHandlers[event.target.id + "_crossing"].postMessage({
-        enter: false,
-        time: event.timeStamp,
-        state: lastState,
-        x: event.offsetX,
-        y: event.offsetY
-    });
-}
-
-/* GdkEventButton GDK_BUTTON_PRESS */
-function on_canvas_mouse_down (event) {
-    let button = event.button + 1;
-
-    updateForEvent (event);
-    lastState = lastState | getButtonMask (button);
-
-    window.webkit.messageHandlers[event.target.id + "_button"].postMessage({
-        press: true,
-        button: button,
-        time: event.timeStamp,
-        state: lastState,
-        x: event.offsetX,
-        y: event.offsetY
-    });
-}
-
-/* GdkEventButton GDK_BUTTON_RELEASE */
-function on_canvas_mouse_up (event) {
-    let button = event.button + 1;
-
-    updateForEvent (event);
-    lastState = lastState | getButtonMask (button);
-
-    window.webkit.messageHandlers[event.target.id + "_button"].postMessage({
-        press: false,
-        button: button,
-        time: event.timeStamp,
-        state: lastState,
-        x: event.offsetX,
-        y: event.offsetY
-    });
-}
-
-/* GdkEventMotion GDK_MOTION_NOTIFY */
-function on_canvas_mouse_move (event) {
-    updateForEvent (event);
-
-    window.webkit.messageHandlers[event.target.id + "_motion"].postMessage({
-        time: event.timeStamp,
-        state: lastState,
-        x: event.offsetX,
-        y: event.offsetY
-    });
-}
-
-window.addEventListener ('load', () => {
+window.addEventListener('load', () => {
     var elements = document.getElementsByClassName('EosWebViewChild');
+    let allocate = false;
 
     /* Initialize all EknWebViewCanvas elements */
-    for (let i = 0, n = elements.length; i < n; i++) {
+    for (let i = 0, len = elements.length; i < len; i++) {
         let canvas = elements[i];
 
         if (!canvas.id || canvas.tagName !== 'CANVAS')
@@ -159,13 +84,12 @@ window.addEventListener ('load', () => {
         /* Keep a reference in a hash table for quick access */
         eos_web_view.children[canvas.id] = canvas;
 
-        /* Marshal events */
-        canvas.onmouseover = on_canvas_mouse_over;
-        canvas.onmouseout = on_canvas_mouse_out;
-        canvas.onmousedown = on_canvas_mouse_down;
-        canvas.onmouseup = on_canvas_mouse_up;
-        canvas.onmousemove = on_canvas_mouse_move;
+        update_root_position(canvas.id);
+        allocate = true;
     }
+
+    if (allocate)
+        window.webkit.messageHandlers.allocate.postMessage({});
 });
 
 /* Semi public function to update widget surface */
@@ -182,7 +106,13 @@ window.eos_web_view.update_canvas = function (id, width, height) {
     let xhr = new XMLHttpRequest();
     xhr.open('GET', 'eosimagedata:///'+id, false);
     xhr.responseType = 'arraybuffer';
-    xhr.send();
+
+    try {
+        xhr.send();
+    } catch (error) {
+        console.error (error);
+        return;
+    }
 
     /* Update canvas */
     if (xhr.response) {

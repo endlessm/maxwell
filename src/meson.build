@@ -2,6 +2,7 @@ api_version = '0.1'
 
 eos_web_view_sources = [
   'eos-web-view.c',
+  'js-utils.c',
 ]
 
 eos_web_view_headers = [

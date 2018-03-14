@@ -1,5 +1,5 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
-/* eos-web-view.h
+/* js-utils.h
  *
  * Copyright (C) 2018 Endless Mobile, Inc.
  *
@@ -21,24 +21,27 @@
  *
  */
 
-#ifndef EOS_WEB_VIEW_H
-#define EOS_WEB_VIEW_H
+#ifndef JS_UTILS_H
+#define JS_UTILS_H
 
 #include <webkit2/webkit2.h>
+#include <JavaScriptCore/JSContextRef.h>
+#include <JavaScriptCore/JSValueRef.h>
+#include <JavaScriptCore/JSObjectRef.h>
+#include <JavaScriptCore/JSStringRef.h>
 
 G_BEGIN_DECLS
 
-#define EOS_WEB_VIEW_INSIDE
-# include "eos-web-view-version.h"
-#undef EOS_WEB_VIEW_INSIDE
+void        _js_run (WebKitWebView *webview,
+                     const gchar   *format,
+                     ...);
 
-#define EOS_TYPE_WEB_VIEW (eos_web_view_get_type ())
-G_DECLARE_FINAL_TYPE (EosWebView, eos_web_view, EOS, WEB_VIEW, WebKitWebView)
-
-GtkWidget     *eos_web_view_new ();
-void           eos_web_view_pack_child (EosWebView  *webview,
-                                        GtkWidget   *child,
-                                        const gchar *id);
+gchar      *_js_object_get_string (JSGlobalContextRef context,
+                                   JSObjectRef        object,
+                                   gchar             *property);
+gdouble     _js_object_get_number (JSGlobalContextRef context,
+                                   JSObjectRef        object,
+                                   gchar             *property);
 G_END_DECLS
 
-#endif /* EOS_WEB_VIEW_H */
+#endif /* JS_UTILS_H */
