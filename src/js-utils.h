@@ -36,6 +36,9 @@ void        _js_run (WebKitWebView *webview,
                      const gchar   *format,
                      ...);
 
+gchar      *_js_get_string        (JSGlobalContextRef context,
+                                   JSValueRef         value);
+
 gchar      *_js_object_get_string (JSGlobalContextRef context,
                                    JSObjectRef        object,
                                    gchar             *property);

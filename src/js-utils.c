@@ -59,8 +59,8 @@ _js_run (WebKitWebView *webview, const gchar *format, ...)
                                   script);
 }
 
-static gchar *
-_js_value_get_string (JSGlobalContextRef context, JSValueRef value)
+gchar *
+_js_get_string (JSGlobalContextRef context, JSValueRef value)
 {
   if (JSValueIsString (context, value))
     {
@@ -94,7 +94,7 @@ _js_object_get_string (JSGlobalContextRef context,
                        JSObjectRef        object,
                        gchar             *property)
 {
-  return _js_value_get_string (context, get_prop (context, object, property));
+  return _js_get_string (context, get_prop (context, object, property));
 }
 
 gdouble
