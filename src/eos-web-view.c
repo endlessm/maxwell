@@ -32,13 +32,11 @@ struct _EosWebView
 
 typedef struct
 {
-  GtkWidget *child;
-  GdkWindow *offscreen;  /* child offscreen window */
-  gchar     *id;         /* canvas-id child property */
-  gint       x;          /* canvas element X coordinate in webview space */
-  gint       y;          /* canvas element Y coordinate in webview space */
+  GtkWidget     *child;
+  GdkWindow     *offscreen; /* child offscreen window */
+  gchar         *id;        /* canvas-id child property */
+  GtkAllocation  alloc;     /* canvas allocation in viewport coordinates */
 } EosWebViewChild;
-
 
 typedef struct
 {
@@ -137,34 +135,6 @@ eos_web_view_dispose (GObject *object)
 }
 
 static void
-children_update_allocation (EosWebView *webview)
-{
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
-  GList *l;
-
-  for (l = priv->children; l; l = g_list_next (l))
-    {
-      EosWebViewChild *data = l->data;
-      GtkRequisition child_requisition;
-      GtkAllocation child_allocation;
-
-      gtk_widget_get_preferred_size (data->child, NULL, &child_requisition);
-
-      child_allocation.x = 0;
-      child_allocation.y = 0;
-      child_allocation.height = child_requisition.height;
-      child_allocation.width = child_requisition.width;
-
-      if (data->offscreen)
-        gdk_window_resize (data->offscreen,
-                           child_allocation.width,
-                           child_allocation.height);
-
-      gtk_widget_size_allocate (data->child, &child_allocation);
-    }
-}
-
-static void
 on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
                                   gpointer                data)
 {
@@ -237,8 +207,8 @@ handle_script_message_position (WebKitUserContentManager *manager,
 
       if (data)
         {
-          data->x = _js_object_get_number (context, obj, "x");
-          data->y = _js_object_get_number (context, obj, "y");
+          data->alloc.x = _js_object_get_number (context, obj, "x");
+          data->alloc.y = _js_object_get_number (context, obj, "y");
         }
 
       g_free (child_id);
@@ -250,16 +220,58 @@ handle_script_message_position (WebKitUserContentManager *manager,
 }
 
 static void
+child_allocate (EosWebViewChild *data)
+{
+  GtkRequisition natural;
+  GtkAllocation alloc;
+
+  gtk_widget_get_preferred_size (data->child, NULL, &natural);
+
+  if (natural.width == data->alloc.width && natural.height == data->alloc.height)
+    return;
+
+  alloc.x = 0;
+  alloc.y = 0;
+  alloc.height = natural.height;
+  alloc.width = natural.width;
+
+  if (data->offscreen)
+    gdk_window_resize (data->offscreen, natural.width, natural.height);
+
+  /* Update canvas alloc size */
+  data->alloc.width = natural.width;
+  data->alloc.height = natural.height;
+
+  gtk_widget_size_allocate (data->child, &alloc);
+}
+
+static void
 handle_script_message_allocate (WebKitUserContentManager *manager,
                                 WebKitJavascriptResult   *result,
                                 EosWebView               *webview)
 {
+  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
   JSValueRef value = webkit_javascript_result_get_value (result);
 
-  if (JSValueIsObject (context, value))
+  if (JSValueIsString (context, value))
     {
-      children_update_allocation (webview);
+      gchar *id = _js_get_string (context, value);
+      EosWebViewChild *data = get_child_data_by_id (priv, id);
+
+      if (data) {
+        child_allocate (data);
+
+        /* Update actual canvas size */
+        _js_run (WEBKIT_WEB_VIEW (webview),
+                 "if (window.hasOwnProperty ('eos_web_view')) {"
+                 "  eos_web_view.children.%s.width = %d;"
+                 "  eos_web_view.children.%s.height = %d;"
+                 "}",
+                 data->id, data->alloc.width,
+                 data->id, data->alloc.height);
+      }
+      g_free (id);
     }
   else
     {
@@ -455,8 +467,8 @@ offscreen_to_parent (GdkWindow  *offscreen_window,
 
   if (data)
     {
-      *parent_x = offscreen_x + data->x;
-      *parent_y = offscreen_y + data->y;
+      *parent_x = offscreen_x + data->alloc.x;
+      *parent_y = offscreen_y + data->alloc.y;
     }
   else
     {
@@ -478,8 +490,8 @@ offscreen_from_parent (GdkWindow  *window,
 
   if (data)
     {
-      *offscreen_x = parent_x - data->x;
-      *offscreen_y = parent_y - data->y;
+      *offscreen_x = parent_x - data->alloc.x;
+      *offscreen_y = parent_y - data->alloc.y;
     }
   else
     {
@@ -504,8 +516,8 @@ pick_offscreen_child (GdkWindow  *offscreen_window,
       gint w = gdk_window_get_width (data->offscreen);
       gint h = gdk_window_get_height (data->offscreen);
 
-      if (widget_x >= data->x && widget_x <= data->x+w &&
-          widget_y >= data->y && widget_y <= data->y+h)
+      if (widget_x >= data->alloc.x && widget_x <= data->alloc.x+w &&
+          widget_y >= data->alloc.y && widget_y <= data->alloc.y+h)
         return data->offscreen;
     }
 
@@ -515,6 +527,7 @@ pick_offscreen_child (GdkWindow  *offscreen_window,
 static void
 ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
 {
+  GdkScreen *screen = gtk_widget_get_screen (webview);
   GdkWindowAttr attributes;
   gint attributes_mask;
 
@@ -532,7 +545,7 @@ ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
                         | GDK_ENTER_NOTIFY_MASK
                         | GDK_LEAVE_NOTIFY_MASK;
 
-  attributes.visual = gtk_widget_get_visual (webview);
+  attributes.visual = gdk_screen_get_rgba_visual (screen);
   attributes.wclass = GDK_INPUT_OUTPUT;
 
   attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL;
@@ -545,7 +558,7 @@ ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
       attributes.width = child_allocation.width;
       attributes.height = child_allocation.height;
     }
-  data->offscreen = gdk_window_new (gdk_screen_get_root_window (gtk_widget_get_screen (webview)),
+  data->offscreen = gdk_window_new (gdk_screen_get_root_window (screen),
                                     &attributes, attributes_mask);
   gtk_widget_register_window (webview, data->offscreen);
   gtk_widget_set_parent_window (data->child, data->offscreen);
@@ -585,37 +598,22 @@ eos_web_view_unrealize (GtkWidget *widget)
 }
 
 static gboolean
-eos_web_view_draw (GtkWidget *widget, cairo_t *cr)
+eos_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
 {
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
-  gboolean retval;
-  GList *l;
+  EosWebViewChild *data = get_child_data_by_offscreen (priv, event->window);
 
-  retval = GTK_WIDGET_CLASS (eos_web_view_parent_class)->draw (widget, cr);
-
-  for (l = priv->children; l; l = g_list_next (l))
+  if (data && data->id && gtk_widget_get_visible (data->child))
     {
-      EosWebViewChild *data = l->data;
-
-      if (data->offscreen && gtk_cairo_should_draw_window (cr, data->offscreen))
-        {
-          gint w = gdk_window_get_width (data->offscreen);
-          gint h = gdk_window_get_height (data->offscreen);
-
-          gtk_render_background (gtk_widget_get_style_context (widget),
-                                 cr, 0, 0, w, h);
-
-          gtk_container_propagate_draw (GTK_CONTAINER (widget), data->child, cr);
-
-          if (data->id && gtk_widget_get_visible (data->child))
-            _js_run (WEBKIT_WEB_VIEW (widget),
-                     "if (window.hasOwnProperty ('eos_web_view'))"
-                     "  eos_web_view.update_canvas('%s', %d, %d);",
-                     data->id, w, h);
-        }
+      _js_run (WEBKIT_WEB_VIEW (widget),
+               "if (window.hasOwnProperty ('eos_web_view'))"
+               "  eos_web_view.update_canvas('%s', %d, %d);",
+               data->id,
+               data->alloc.width,
+               data->alloc.height);
     }
 
-  return retval;
+  return FALSE;
 }
 
 static void
@@ -648,7 +646,7 @@ eos_web_view_class_init (EosWebViewClass *klass)
 
   widget_class->realize = eos_web_view_realize;
   widget_class->unrealize = eos_web_view_unrealize;
-  widget_class->draw = eos_web_view_draw;
+  widget_class->damage_event = eos_web_view_damage_event;
 
   container_class->add = eos_web_view_add;
   container_class->remove = eos_web_view_remove;

@@ -32,7 +32,7 @@ window.eos_web_view.children = {}
 function update_positions () {
     let children = window.eos_web_view.children;
 
-    for (var id in children) {
+    for (let id in children) {
         let canvas = children[id];
         let rect = canvas.getBoundingClientRect();
         let x = rect.x;
@@ -40,7 +40,7 @@ function update_positions () {
 
         /* Bail if position did not changed */
         if (canvas.eos_position_x === x && canvas.eos_position_y === y)
-            return;
+            continue;
 
         /* Update position in cache */
         canvas.eos_position_x = x;
@@ -51,35 +51,46 @@ function update_positions () {
     }
 }
 
-window.addEventListener("scroll", update_positions, false);
-window.addEventListener("resize", update_positions, false);
+/* We need to update widget positions on scroll and resize events */
+window.addEventListener("scroll", update_positions, { passive: true });
+window.addEventListener("resize", update_positions, { passive: true });
 
-window.addEventListener('load', () => {
-    var elements = document.getElementsByClassName('EosWebViewChild');
+/* We also need to update it on any DOM change */
+function document_mutation_handler (mutationsList) {
+    for (var mutation of mutationsList) {
+        if (mutation.type === 'childList') {
+            for (let i = 0, len = mutation.addedNodes.length; i < len; i++) {
+                let canvas = mutation.addedNodes[i];
 
-    /* Initialize all EknWebViewCanvas elements */
-    for (let i = 0, len = elements.length; i < len; i++) {
-        let canvas = elements[i];
+                if (!canvas.id || canvas.tagName !== 'CANVAS' ||
+                    !canvas.classList.contains ('EosWebViewChild'))
+                    continue;
 
-        if (!canvas.id || canvas.tagName !== 'CANVAS')
-            continue;
-
-        /* Keep a reference in a hash table for quick access */
-        eos_web_view.children[canvas.id] = canvas;
+                /* Keep a reference in a hash table for quick access */
+                eos_web_view.children[canvas.id] = canvas;
+                window.webkit.messageHandlers.allocate.postMessage(canvas.id);
+            }
+        }
     }
 
-    update_positions();
+    /* Extra paranoid, update positions if anything changes in the DOM tree!
+     * ideally it would be nice to directly observe BoundingClientRect changes.
+     */
+    update_positions ();
+};
 
-    window.webkit.messageHandlers.allocate.postMessage({});
+/* Main DOM observer */
+let observer = new MutationObserver(document_mutation_handler);
+
+observer.observe(document, {
+    childList: true,
+    subtree: true,
+    attributes: true
 });
 
 /* Semi public function to update widget surface */
 window.eos_web_view.update_canvas = function (id, width, height) {
     let canvas = eos_web_view.children[id];
-
-    /* Resize canvas */
-    canvas.width = width;
-    canvas.height = height;
 
     /* Unfortunatelly WebGL does not support texture_from_pixmap */
 
