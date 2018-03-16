@@ -23,28 +23,22 @@
 
 (function() {
 
-/* Semi Public entry point */
-window.eos_web_view = {}
-
-/* List of children */
-window.eos_web_view.children = {}
-
 function update_positions () {
     let children = window.eos_web_view.children;
 
     for (let id in children) {
-        let canvas = children[id];
-        let rect = canvas.getBoundingClientRect();
+        let child = children[id];
+        let rect = child.getBoundingClientRect();
         let x = rect.x;
         let y = rect.y;
 
         /* Bail if position did not changed */
-        if (canvas.eos_position_x === x && canvas.eos_position_y === y)
+        if (child.eos_position_x === x && child.eos_position_y === y)
             continue;
 
         /* Update position in cache */
-        canvas.eos_position_x = x;
-        canvas.eos_position_y = y;
+        child.eos_position_x = x;
+        child.eos_position_y = y;
 
         /* Update position in EosWebView */
         window.webkit.messageHandlers.position.postMessage({ id: id, x: x, y: y });
@@ -60,15 +54,29 @@ function document_mutation_handler (mutationsList) {
     for (var mutation of mutationsList) {
         if (mutation.type === 'childList') {
             for (let i = 0, len = mutation.addedNodes.length; i < len; i++) {
-                let canvas = mutation.addedNodes[i];
+                let child = mutation.addedNodes[i];
 
-                if (!canvas.id || canvas.tagName !== 'CANVAS' ||
-                    !canvas.classList.contains ('EosWebViewChild'))
+                if (!child.id || child.tagName !== 'CANVAS' ||
+                    !child.classList.contains ('EosWebViewChild'))
                     continue;
 
+                /* Save original display value */
+                child.eos_display_value = child.style.display;
+
+                /* Hide all widgets by default */
+                child.style.display = 'none';
+
+                /* And set no size (canvas default is 300x150) */
+                child.width = 0;
+                child.height = 0;
+
                 /* Keep a reference in a hash table for quick access */
-                eos_web_view.children[canvas.id] = canvas;
-                window.webkit.messageHandlers.allocate.postMessage(canvas.id);
+                eos_web_view.children[child.id] = child;
+
+                /* Allocate GtkWidget, canvas size will change the first time
+                 * child_draw() is called and we actually have something to show
+                 */
+                window.webkit.messageHandlers.allocate.postMessage(child.id);
             }
         }
     }
@@ -88,11 +96,41 @@ observer.observe(document, {
     attributes: true
 });
 
-/* Semi public function to update widget surface */
-window.eos_web_view.update_canvas = function (id, width, height) {
-    let canvas = eos_web_view.children[id];
+/* Semi Public API */
 
-    /* Unfortunatelly WebGL does not support texture_from_pixmap */
+/* Main entry point */
+window.eos_web_view = {}
+
+/* List of children */
+window.eos_web_view.children = {}
+
+/* child_draw()
+ *
+ * Draw child canvas with eosimagedata:///canvasid image
+ *
+ * Unfortunatelly WebGL does not support texture_from_pixmap but we might be able
+ * to use GL to implement this function if we can get the context from WebKit
+ * itself
+ */
+window.eos_web_view.child_draw = function (id, width, height) {
+    let child = eos_web_view.children[id];
+
+    if (!child)
+        return;
+
+    let ctx = child.getContext('2d');
+
+    /* Resize canvas keeping the old contents */
+    if (child.width !== width || child.height !== height) {
+        var old_image = ctx.getImageData(0, 0, child.width, child.height);
+
+        child.width = width;
+        child.height = height;
+
+        ctx.putImageData(old_image, 0, 0);
+
+        old_image = null;
+    }
 
     /* Get image data */
     let xhr = new XMLHttpRequest();
@@ -105,9 +143,8 @@ window.eos_web_view.update_canvas = function (id, width, height) {
         return;
     }
 
-    /* Update canvas */
+    /* Update child canvas */
     if (xhr.response) {
-        var ctx = canvas.getContext('2d');
         let data = new Uint8ClampedArray(xhr.response);
         let image = new ImageData(data, width, height);
 
@@ -121,7 +158,38 @@ window.eos_web_view.update_canvas = function (id, width, height) {
     xhr = null;
 
     /* Hint EknWebView we are done with image data */
-    window.webkit.messageHandlers.update_canvas_done.postMessage({});
+    window.webkit.messageHandlers.child_draw_done.postMessage({});
 }
+
+/* child_set_visible()
+ *
+ * Show/hide widget element
+ */
+window.eos_web_view.child_set_visible = function (id, visible) {
+    let child = eos_web_view.children[id];
+
+    if (child)
+        child.style.display = (visible) ? child.eos_display_value : 'none';
+}
+
+/* child_init()
+ *
+ */
+window.eos_web_view.child_init = function (id, width, height, visible) {
+    let child = eos_web_view.children[id];
+
+    if (!child)
+        return;
+
+    child.width = width;
+    child.height = height;
+    window.eos_web_view.child_draw (id, width, height);
+
+    if (visible)
+        window.eos_web_view.child_set_visible (id, visible);
+}
+
+/* Signal EosWebView the script has finished loading */
+window.webkit.messageHandlers.script_loaded.postMessage({});
 
 })();

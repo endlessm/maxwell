@@ -42,6 +42,7 @@ typedef struct
 {
   GList      *children;  /* List of EosWebViewChild */
   GdkPixbuf  *pixbuf;    /* Temporal copy of offscreen window while handling eosdataimage:// */
+  gboolean    script_loaded;
 } EosWebViewPrivate;
 
 enum
@@ -182,9 +183,9 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
 }
 
 static void
-handle_script_message_update_canvas_done (WebKitUserContentManager *manager,
-                                          WebKitJavascriptResult   *result,
-                                          EosWebView               *webview)
+handle_script_message_child_draw_done (WebKitUserContentManager *manager,
+                                       WebKitJavascriptResult   *result,
+                                       EosWebView               *webview)
 {
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
   g_clear_object (&priv->pixbuf);
@@ -235,14 +236,27 @@ child_allocate (EosWebViewChild *data)
   alloc.height = natural.height;
   alloc.width = natural.width;
 
-  if (data->offscreen)
-    gdk_window_resize (data->offscreen, natural.width, natural.height);
-
   /* Update canvas alloc size */
   data->alloc.width = natural.width;
   data->alloc.height = natural.height;
 
   gtk_widget_size_allocate (data->child, &alloc);
+
+  if (data->offscreen)
+    gdk_window_resize (data->offscreen, natural.width, natural.height);
+}
+
+static void
+child_update_visibility (EosWebView *webview, GtkWidget *child)
+{
+  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
+  EosWebViewChild *data = get_child_data_by_child (priv, child);
+
+  if (data && data->id)
+    _js_run (WEBKIT_WEB_VIEW (webview),
+             "eos_web_view.child_set_visible ('%s', %s);",
+             data->id,
+             gtk_widget_get_visible (child) ? "true" : "false");
 }
 
 static void
@@ -262,14 +276,10 @@ handle_script_message_allocate (WebKitUserContentManager *manager,
       if (data) {
         child_allocate (data);
 
-        /* Update actual canvas size */
         _js_run (WEBKIT_WEB_VIEW (webview),
-                 "if (window.hasOwnProperty ('eos_web_view')) {"
-                 "  eos_web_view.children.%s.width = %d;"
-                 "  eos_web_view.children.%s.height = %d;"
-                 "}",
-                 data->id, data->alloc.width,
-                 data->id, data->alloc.height);
+                 "eos_web_view.child_init ('%s', %d, %d, %s);",
+                 data->id, data->alloc.width, data->alloc.height,
+                 gtk_widget_get_visible (data->child) ? "true" : "false");
       }
       g_free (id);
     }
@@ -277,6 +287,15 @@ handle_script_message_allocate (WebKitUserContentManager *manager,
     {
       g_warning ("Error running javascript: unexpected return value");
     }
+}
+
+static void
+handle_script_message_script_loaded (WebKitUserContentManager *manager,
+                                     WebKitJavascriptResult   *result,
+                                     EosWebView               *webview)
+{
+  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
+  priv->script_loaded = TRUE;
 }
 
 static void
@@ -333,6 +352,12 @@ eos_web_view_get_child_property (GtkContainer *container,
     }
 }
 
+#define EWV_DEFINE_MSG_HANDLER(manager, name, object) \
+  g_signal_connect_object (manager, "script-message-received::"#name,\
+                           G_CALLBACK (handle_script_message_##name),\
+                           object, 0);\
+  webkit_user_content_manager_register_script_message_handler (manager, #name);
+
 static void
 eos_web_view_constructed (GObject *object)
 {
@@ -372,25 +397,17 @@ eos_web_view_constructed (GObject *object)
                                    NULL, NULL);
   webkit_user_content_manager_add_script (content_manager, script);
 
+  /* Signal script has been loaded */
+  EWV_DEFINE_MSG_HANDLER (content_manager, script_loaded, webview);
+
   /* Handler to free pixbuf imediately after updating canvas */
-  g_signal_connect_object (content_manager, "script-message-received::update_canvas_done",
-                           G_CALLBACK (handle_script_message_update_canvas_done),
-                           webview, 0);
-  webkit_user_content_manager_register_script_message_handler (content_manager,
-                                                               "update_canvas_done");
+  EWV_DEFINE_MSG_HANDLER (content_manager, child_draw_done, webview);
 
-  /* handle child position changes */
-  g_signal_connect_object (content_manager, "script-message-received::position",
-                           G_CALLBACK (handle_script_message_position),
-                           webview, 0);
-  webkit_user_content_manager_register_script_message_handler (content_manager,
-                                                               "position");
+  /* Handle child position changes */
+  EWV_DEFINE_MSG_HANDLER (content_manager, position, webview);
 
-  g_signal_connect_object (content_manager, "script-message-received::allocate",
-                           G_CALLBACK (handle_script_message_allocate),
-                           webview, 0);
-  webkit_user_content_manager_register_script_message_handler (content_manager,
-                                                               "allocate");
+  /* Allocate new canvas added to the DOM */
+  EWV_DEFINE_MSG_HANDLER (content_manager, allocate, webview);
 }
 
 static void
@@ -399,17 +416,9 @@ on_child_visible_notify (GObject    *object,
                          EosWebView *webview)
 {
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
-  GtkWidget *widget = GTK_WIDGET (object);
-  EosWebViewChild *data = get_child_data_by_child (priv, widget);
 
-  if (!data)
-    return;
-
-  _js_run (WEBKIT_WEB_VIEW (webview),
-           "if (window.hasOwnProperty ('eos_web_view'))"
-           "  eos_web_view.children.%s.style.visibility = '%s';",
-           data->id,
-           gtk_widget_get_visible (widget) ? "visible" : "hidden");
+  if (priv->script_loaded)
+    child_update_visibility (webview, GTK_WIDGET (object));
 }
 
 static void
@@ -424,14 +433,13 @@ eos_web_view_add (GtkContainer *container, GtkWidget *child)
   g_return_if_fail (gtk_widget_get_parent (child) == NULL);
 
   data = eos_web_view_child_new (child);
-
-  priv->children = g_list_prepend (priv->children, data);
-
   g_signal_connect_object (child, "notify::visible",
                            G_CALLBACK (on_child_visible_notify),
                            container, 0);
 
   gtk_widget_set_parent (child, GTK_WIDGET (container));
+
+  priv->children = g_list_prepend (priv->children, data);
 }
 
 static void
@@ -531,10 +539,13 @@ ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
   GdkWindowAttr attributes;
   gint attributes_mask;
 
+  if (data->id == NULL)
+    return;
+
   attributes.x = 0;
   attributes.y = 0;
-  attributes.width = 1;
-  attributes.height = 1;
+  attributes.width = data->alloc.width;
+  attributes.height = data->alloc.height;
   attributes.window_type = GDK_WINDOW_OFFSCREEN;
   attributes.event_mask = gtk_widget_get_events (webview)
                         | GDK_EXPOSURE_MASK
@@ -550,14 +561,6 @@ ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
 
   attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL;
 
-  if (gtk_widget_get_visible (data->child))
-    {
-      GtkAllocation child_allocation;
-
-      gtk_widget_get_allocation (data->child, &child_allocation);
-      attributes.width = child_allocation.width;
-      attributes.height = child_allocation.height;
-    }
   data->offscreen = gdk_window_new (gdk_screen_get_root_window (screen),
                                     &attributes, attributes_mask);
   gtk_widget_register_window (webview, data->offscreen);
@@ -587,7 +590,14 @@ eos_web_view_realize (GtkWidget *widget)
                            0);
 
   for (l = priv->children; l; l = g_list_next (l))
-    ensure_offscreen (widget, l->data);
+    {
+      EosWebViewChild *data = l->data;
+
+      ensure_offscreen (widget, data);
+
+      if (gtk_widget_get_visible (data->child))
+        child_update_visibility (EOS_WEB_VIEW (widget), l->data);
+    }
 }
 
 static void
@@ -603,17 +613,32 @@ eos_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
   EosWebViewChild *data = get_child_data_by_offscreen (priv, event->window);
 
+  /* Dont do anything if the support script did not finished loading */
+  if (!priv->script_loaded)
+    return FALSE;
+
   if (data && data->id && gtk_widget_get_visible (data->child))
     {
       _js_run (WEBKIT_WEB_VIEW (widget),
-               "if (window.hasOwnProperty ('eos_web_view'))"
-               "  eos_web_view.update_canvas('%s', %d, %d);",
+               "eos_web_view.child_draw('%s', %d, %d);",
                data->id,
                data->alloc.width,
                data->alloc.height);
     }
 
   return FALSE;
+}
+
+static void
+eos_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
+{
+  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
+  GList *l;
+
+  for (l = priv->children; l; l = g_list_next (l))
+    child_allocate (l->data);
+
+  GTK_WIDGET_CLASS (eos_web_view_parent_class)->size_allocate (widget, allocation);
 }
 
 static void
@@ -646,6 +671,7 @@ eos_web_view_class_init (EosWebViewClass *klass)
 
   widget_class->realize = eos_web_view_realize;
   widget_class->unrealize = eos_web_view_unrealize;
+  widget_class->size_allocate = eos_web_view_size_allocate;
   widget_class->damage_event = eos_web_view_damage_event;
 
   container_class->add = eos_web_view_add;
