@@ -252,7 +252,7 @@ child_update_visibility (EosWebView *webview, GtkWidget *child)
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
   EosWebViewChild *data = get_child_data_by_child (priv, child);
 
-  if (data && data->id)
+  if (priv->script_loaded && data && data->id)
     _js_run (WEBKIT_WEB_VIEW (webview),
              "eos_web_view.child_set_visible ('%s', %s);",
              data->id,
@@ -597,7 +597,23 @@ eos_web_view_realize (GtkWidget *widget)
 static void
 eos_web_view_unrealize (GtkWidget *widget)
 {
-  /* TODO: implement */
+  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
+  GList *l;
+
+  for (l = priv->children; l; l = g_list_next (l))
+    {
+      EosWebViewChild *data = l->data;
+
+      if (!data->offscreen)
+        continue;
+
+      gtk_widget_unregister_window (widget, data->offscreen);
+      gdk_window_destroy (data->offscreen);
+      data->offscreen = NULL;
+
+      child_update_visibility (EOS_WEB_VIEW (widget), data->child);
+    }
+
   GTK_WIDGET_CLASS (eos_web_view_parent_class)->unrealize (widget);
 }
 
