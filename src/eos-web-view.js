@@ -173,7 +173,12 @@ window.eos_web_view.child_draw = function (id, width, height) {
     }
 
     /* Update child canvas */
-    if (xhr.response) {
+    if (xhr.response &&
+        /* Make sure the response is the right size, this avoids
+         * "InvalidStateError: The object is in an invalid state."
+         * TODO: find out the real cause of the error
+         */
+        xhr.response.byteLength === width * height * 4) {
         let data = new Uint8ClampedArray(xhr.response);
         let image = new ImageData(data, width, height);
 
