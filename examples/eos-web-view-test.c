@@ -63,6 +63,8 @@ main (int argc, char *argv[])
                              "  <h2>A GtkButton</h2>"
                              "   <canvas class=\"EosWebViewChild\" id=\"button\"></canvas>"
                              "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.<br>"
+                             "  <h2>A HTML text input</h2>"
+                             "  <input type=\"text\">"
                              "  <h2>A GtkEntry</h2>"
                              "   <canvas class=\"EosWebViewChild\" id=\"entry\"></canvas>"
                              "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.<br>"

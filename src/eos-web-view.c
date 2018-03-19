@@ -537,7 +537,6 @@ ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
 {
   GdkScreen *screen = gtk_widget_get_screen (webview);
   GdkWindowAttr attributes;
-  gint attributes_mask;
 
   if (data->id == NULL)
     return;
@@ -547,30 +546,25 @@ ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
   attributes.width = data->alloc.width;
   attributes.height = data->alloc.height;
   attributes.window_type = GDK_WINDOW_OFFSCREEN;
-  attributes.event_mask = gtk_widget_get_events (webview)
-                        | GDK_EXPOSURE_MASK
-                        | GDK_POINTER_MOTION_MASK
-                        | GDK_BUTTON_PRESS_MASK
-                        | GDK_BUTTON_RELEASE_MASK
-                        | GDK_SCROLL_MASK
-                        | GDK_ENTER_NOTIFY_MASK
-                        | GDK_LEAVE_NOTIFY_MASK;
-
+  attributes.event_mask = gtk_widget_get_events (data->child) | GDK_EXPOSURE_MASK;
   attributes.visual = gdk_screen_get_rgba_visual (screen);
   attributes.wclass = GDK_INPUT_OUTPUT;
 
-  attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL;
-
   data->offscreen = gdk_window_new (gdk_screen_get_root_window (screen),
-                                    &attributes, attributes_mask);
+                                    &attributes,
+                                    GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL);
+
   gtk_widget_register_window (webview, data->offscreen);
   gtk_widget_set_parent_window (data->child, data->offscreen);
+
   gdk_offscreen_window_set_embedder (data->offscreen,
                                      gtk_widget_get_window (webview));
-  g_signal_connect (data->offscreen, "to-embedder",
-                    G_CALLBACK (offscreen_to_parent), webview);
-  g_signal_connect (data->offscreen, "from-embedder",
-                    G_CALLBACK (offscreen_from_parent), webview);
+  g_signal_connect_object (data->offscreen, "to-embedder",
+                           G_CALLBACK (offscreen_to_parent),
+                           webview, 0);
+  g_signal_connect_object (data->offscreen, "from-embedder",
+                           G_CALLBACK (offscreen_from_parent),
+                           webview, 0);
 
   gdk_window_show (data->offscreen);
 }
@@ -659,6 +653,26 @@ eos_web_view_forall (GtkContainer *container,
     }
 }
 
+static gboolean
+eos_web_view_button_press_event (GtkWidget *widget, GdkEventButton *event)
+{
+  /* Ignore button events from offscreen windows */
+  if (gdk_offscreen_window_get_embedder (event->window) == gtk_widget_get_window (widget))
+    return TRUE;
+
+  return GTK_WIDGET_CLASS (eos_web_view_parent_class)->button_press_event (widget, event);
+}
+
+static gboolean
+eos_web_view_button_release_event (GtkWidget *widget, GdkEventButton *event)
+{
+  /* Ignore button events from offscreen windows */
+  if (gdk_offscreen_window_get_embedder (event->window) == gtk_widget_get_window (widget))
+    return TRUE;
+
+  return GTK_WIDGET_CLASS (eos_web_view_parent_class)->button_release_event (widget, event);
+}
+
 static void
 eos_web_view_class_init (EosWebViewClass *klass)
 {
@@ -673,6 +687,9 @@ eos_web_view_class_init (EosWebViewClass *klass)
   widget_class->unrealize = eos_web_view_unrealize;
   widget_class->size_allocate = eos_web_view_size_allocate;
   widget_class->damage_event = eos_web_view_damage_event;
+
+  widget_class->button_press_event = eos_web_view_button_press_event;
+  widget_class->button_release_event = eos_web_view_button_release_event;
 
   container_class->add = eos_web_view_add;
   container_class->remove = eos_web_view_remove;
