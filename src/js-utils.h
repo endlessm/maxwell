@@ -32,19 +32,24 @@
 
 G_BEGIN_DECLS
 
-void        _js_run (WebKitWebView *webview,
-                     const gchar   *format,
-                     ...);
+void        _js_run_finish_handler (GObject      *object,
+                                    GAsyncResult *result,
+                                    gpointer      data);
 
-gchar      *_js_get_string        (JSGlobalContextRef context,
-                                   JSValueRef         value);
+void        _js_run                (WebKitWebView *webview,
+                                    const gchar   *format,
+                                    ...);
 
-gchar      *_js_object_get_string (JSGlobalContextRef context,
-                                   JSObjectRef        object,
-                                   gchar             *property);
-gdouble     _js_object_get_number (JSGlobalContextRef context,
-                                   JSObjectRef        object,
-                                   gchar             *property);
+gchar      *_js_get_string         (JSGlobalContextRef context,
+                                    JSValueRef         value);
+
+gchar      *_js_object_get_string  (JSGlobalContextRef context,
+                                    JSObjectRef        object,
+                                    gchar             *property);
+
+gdouble     _js_object_get_number  (JSGlobalContextRef context,
+                                    JSObjectRef        object,
+                                    gchar             *property);
 G_END_DECLS
 
 #endif /* JS_UTILS_H */

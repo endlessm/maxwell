@@ -24,12 +24,11 @@
 
 #include "js-utils.h"
 
-static void
-run_javascrip_finish_handler (GObject      *object,
-                              GAsyncResult *result,
-                              gpointer      script)
+void
+_js_run_finish_handler (GObject *object, GAsyncResult *result, gpointer data)
 {
     WebKitJavascriptResult *js_result;
+    gchar *script = data;
     GError *error = NULL;
 
     js_result = webkit_web_view_run_javascript_finish (WEBKIT_WEB_VIEW (object),
@@ -37,11 +36,10 @@ run_javascrip_finish_handler (GObject      *object,
                                                        &error);
     if (!js_result)
       {
-        g_warning ("Error running javascript: %s\n%s", error->message, (gchar*)script);
+        g_warning ("Error running javascript: %s\n%s", script, error->message);
         g_error_free (error);
       }
-
-  g_free (script);
+    g_free (script);
 }
 
 void
@@ -55,8 +53,7 @@ _js_run (WebKitWebView *webview, const gchar *format, ...)
   va_end (args);
 
   webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview), script, NULL,
-                                  run_javascrip_finish_handler,
-                                  script);
+                                  _js_run_finish_handler, NULL);
 }
 
 gchar *

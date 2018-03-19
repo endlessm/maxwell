@@ -192,27 +192,36 @@ handle_script_message_child_draw_done (WebKitUserContentManager *manager,
 }
 
 static void
-handle_script_message_position (WebKitUserContentManager *manager,
-                                WebKitJavascriptResult   *result,
-                                EosWebView               *webview)
+handle_script_message_update_positions (WebKitUserContentManager *manager,
+                                        WebKitJavascriptResult   *result,
+                                        EosWebView               *webview)
 {
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
   JSValueRef value = webkit_javascript_result_get_value (result);
 
-  if (JSValueIsObject (context, value))
+  if (JSValueIsArray (context, value))
     {
-      JSObjectRef obj = JSValueToObject (context, value, NULL);
-      gchar *child_id = _js_object_get_string (context, obj, "id");
-      EosWebViewChild *data = get_child_data_by_id (priv, child_id);
+      JSObjectRef array = JSValueToObject (context, value, NULL);
+      JSValueRef val;
+      gint i = 0;
 
-      if (data)
+      while ((val = JSObjectGetPropertyAtIndex (context, array, i, NULL)) &&
+             JSValueIsObject (context, val))
         {
-          data->alloc.x = _js_object_get_number (context, obj, "x");
-          data->alloc.y = _js_object_get_number (context, obj, "y");
-        }
+          JSObjectRef obj = JSValueToObject (context, val, NULL);
+          gchar *child_id = _js_object_get_string (context, obj, "id");
+          EosWebViewChild *data = get_child_data_by_id (priv, child_id);
 
-      g_free (child_id);
+          if (data)
+            {
+              data->alloc.x = _js_object_get_number (context, obj, "x");
+              data->alloc.y = _js_object_get_number (context, obj, "y");
+            }
+
+          g_free (child_id);
+          i++;
+        }
     }
   else
     {
@@ -260,28 +269,47 @@ child_update_visibility (EosWebView *webview, GtkWidget *child)
 }
 
 static void
-handle_script_message_allocate (WebKitUserContentManager *manager,
-                                WebKitJavascriptResult   *result,
-                                EosWebView               *webview)
+handle_script_message_children_allocate (WebKitUserContentManager *manager,
+                                         WebKitJavascriptResult   *result,
+                                         EosWebView               *webview)
 {
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
   JSValueRef value = webkit_javascript_result_get_value (result);
 
-  if (JSValueIsString (context, value))
+  if (JSValueIsArray (context, value))
     {
-      gchar *id = _js_get_string (context, value);
-      EosWebViewChild *data = get_child_data_by_id (priv, id);
+      JSObjectRef array = JSValueToObject (context, value, NULL);
+      GString *script = g_string_new ("");
+      JSValueRef val;
+      gint i = 0;
 
-      if (data) {
-        child_allocate (data);
+      while ((val = JSObjectGetPropertyAtIndex (context, array, i, NULL)) &&
+             JSValueIsString (context, val))
+        {
+          gchar *id = _js_get_string (context, val);
+          EosWebViewChild *data = get_child_data_by_id (priv, id);
 
-        _js_run (WEBKIT_WEB_VIEW (webview),
-                 "eos_web_view.child_init ('%s', %d, %d, %s);",
-                 data->id, data->alloc.width, data->alloc.height,
-                 gtk_widget_get_visible (data->child) ? "true" : "false");
-      }
-      g_free (id);
+          if (data)
+            {
+              child_allocate (data);
+
+              /* Collect children to initialize */
+              g_string_append_printf (script, "eos_web_view.child_init ('%s', %d, %d, %s);\n",
+                                      data->id, data->alloc.width, data->alloc.height,
+                                      gtk_widget_get_visible (data->child) ? "true" : "false");
+            }
+          g_free (id);
+          i++;
+        }
+
+      /* Initialize all children at once */
+      if (script->len)
+        webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
+                                        script->str, NULL,
+                                        _js_run_finish_handler,
+                                        script->str);
+      g_string_free (script, FALSE);
     }
   else
     {
@@ -403,11 +431,11 @@ eos_web_view_constructed (GObject *object)
   /* Handler to free pixbuf imediately after updating canvas */
   EWV_DEFINE_MSG_HANDLER (content_manager, child_draw_done, webview);
 
-  /* Handle child position changes */
-  EWV_DEFINE_MSG_HANDLER (content_manager, position, webview);
+  /* Handle children position changes */
+  EWV_DEFINE_MSG_HANDLER (content_manager, update_positions, webview);
 
   /* Allocate new canvas added to the DOM */
-  EWV_DEFINE_MSG_HANDLER (content_manager, allocate, webview);
+  EWV_DEFINE_MSG_HANDLER (content_manager, children_allocate, webview);
 }
 
 static void

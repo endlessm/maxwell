@@ -49,6 +49,7 @@ function throttle (func, limit) {
 
 function update_positions () {
     let children = window.eos_web_view.children;
+    let positions = new Array ();
 
     for (let id in children) {
         let child = children[id];
@@ -64,10 +65,12 @@ function update_positions () {
         child.eos_position_x = x;
         child.eos_position_y = y;
 
-        /* Update position in EosWebView */
-        window.webkit.messageHandlers.position.postMessage({ id: id, x: x, y: y });
+        /* Collect new positions */
+        positions.push ({ id: id, x: x, y: y });
     }
 
+    /* Update all positions in EosWebView at once to reduce messages */
+    window.webkit.messageHandlers.update_positions.postMessage(positions);
     position_timeout_id = null;
 }
 
@@ -80,6 +83,8 @@ window.addEventListener("resize", update_positions_throttled, { passive: true })
 
 /* We also need to update it on any DOM change */
 function document_mutation_handler (mutations) {
+    let children = new Array ();
+
     for (var mutation of mutations) {
         if (mutation.type !== 'childList')
             continue;
@@ -104,12 +109,15 @@ function document_mutation_handler (mutations) {
             /* Keep a reference in a hash table for quick access */
             eos_web_view.children[child.id] = child;
 
-            /* Allocate GtkWidget, canvas size will change the first time
-             * child_draw() is called and we actually have something to show
-             */
-            window.webkit.messageHandlers.allocate.postMessage(child.id);
+            /* Collect children to allocate */
+            children.push(child.id);
         }
     }
+
+    /* Allocate GtkWidget, canvas size will change the first time
+     * child_draw() is called and we actually have something to show
+     */
+    window.webkit.messageHandlers.children_allocate.postMessage(children);
 
     /* Extra paranoid, update positions if anything changes in the DOM tree!
      * ideally it would be nice to directly observe BoundingClientRect changes.
