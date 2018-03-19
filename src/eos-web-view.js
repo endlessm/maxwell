@@ -23,6 +23,30 @@
 
 (function() {
 
+function throttle (func, limit) {
+    let stamp, id;
+
+    return () => {
+        let self = this;
+        let args = arguments;
+
+        if (!stamp) {
+            func.apply(self, args);
+            stamp = Date.now();
+            return;
+        }
+
+        clearTimeout(id);
+        id = setTimeout(() => {
+            let now = Date.now();
+            if (now - stamp >= limit) {
+                func.apply(self, args);
+                stamp = now;
+            }
+        }, limit - (Date.now() - stamp));
+    }
+}
+
 function update_positions () {
     let children = window.eos_web_view.children;
 
@@ -43,53 +67,58 @@ function update_positions () {
         /* Update position in EosWebView */
         window.webkit.messageHandlers.position.postMessage({ id: id, x: x, y: y });
     }
+
+    position_timeout_id = null;
 }
 
+/* Limit to 10Hz */
+let update_positions_throttled = throttle(update_positions, 100);
+
 /* We need to update widget positions on scroll and resize events */
-window.addEventListener("scroll", update_positions, { passive: true });
-window.addEventListener("resize", update_positions, { passive: true });
+window.addEventListener("scroll", update_positions_throttled, { passive: true });
+window.addEventListener("resize", update_positions_throttled, { passive: true });
 
 /* We also need to update it on any DOM change */
-function document_mutation_handler (mutationsList) {
-    for (var mutation of mutationsList) {
-        if (mutation.type === 'childList') {
-            for (let i = 0, len = mutation.addedNodes.length; i < len; i++) {
-                let child = mutation.addedNodes[i];
+function document_mutation_handler (mutations) {
+    for (var mutation of mutations) {
+        if (mutation.type !== 'childList')
+            continue;
 
-                if (!child.id || child.tagName !== 'CANVAS' ||
-                    !child.classList.contains ('EosWebViewChild'))
-                    continue;
+        for (let i = 0, len = mutation.addedNodes.length; i < len; i++) {
+            let child = mutation.addedNodes[i];
 
-                /* Save original display value */
-                child.eos_display_value = child.style.display;
+            if (!child.id || child.tagName !== 'CANVAS' ||
+                !child.classList.contains('EosWebViewChild'))
+                continue;
 
-                /* Hide all widgets by default */
-                child.style.display = 'none';
+            /* Save original display value */
+            child.eos_display_value = child.style.display;
 
-                /* And set no size (canvas default is 300x150) */
-                child.width = 0;
-                child.height = 0;
+            /* Hide all widgets by default */
+            child.style.display = 'none';
 
-                /* Keep a reference in a hash table for quick access */
-                eos_web_view.children[child.id] = child;
+            /* And set no size (canvas default is 300x150) */
+            child.width = 0;
+            child.height = 0;
 
-                /* Allocate GtkWidget, canvas size will change the first time
-                 * child_draw() is called and we actually have something to show
-                 */
-                window.webkit.messageHandlers.allocate.postMessage(child.id);
-            }
+            /* Keep a reference in a hash table for quick access */
+            eos_web_view.children[child.id] = child;
+
+            /* Allocate GtkWidget, canvas size will change the first time
+             * child_draw() is called and we actually have something to show
+             */
+            window.webkit.messageHandlers.allocate.postMessage(child.id);
         }
     }
 
     /* Extra paranoid, update positions if anything changes in the DOM tree!
      * ideally it would be nice to directly observe BoundingClientRect changes.
      */
-    update_positions ();
+    update_positions_throttled();
 };
 
 /* Main DOM observer */
 let observer = new MutationObserver(document_mutation_handler);
-
 observer.observe(document, {
     childList: true,
     subtree: true,
