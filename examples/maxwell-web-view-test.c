@@ -1,6 +1,6 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /*
- * eos-web-view-test.c
+ * maxwell-web-view-test.c
  *
  * Copyright (C) 2018 Endless Mobile, Inc.
  *
@@ -22,7 +22,7 @@
  *
  */
 
-#include "eos-web-view.h"
+#include "maxwell-web-view.h"
 
 static void
 on_button_clicked (GtkWidget *button, GtkLabel *label)
@@ -46,7 +46,7 @@ main (int argc, char *argv[])
   gtk_window_set_default_size (GTK_WINDOW (window), 480, 640);
   g_signal_connect (window, "delete-event", G_CALLBACK (gtk_main_quit), NULL);
 
-  webview = eos_web_view_new ();
+  webview = maxwell_web_view_new ();
 
   box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 4);
 
@@ -65,29 +65,29 @@ main (int argc, char *argv[])
 
   label = gtk_label_new ("another GtkLabel");
 
-  eos_web_view_pack_child (EOS_WEB_VIEW (webview), label, "label");
-  eos_web_view_pack_child (EOS_WEB_VIEW (webview), box, "box");
-  eos_web_view_pack_child (EOS_WEB_VIEW (webview), entry, "entry");
+  maxwell_web_view_pack_child (MAXWELL_WEB_VIEW (webview), label, "label");
+  maxwell_web_view_pack_child (MAXWELL_WEB_VIEW (webview), box, "box");
+  maxwell_web_view_pack_child (MAXWELL_WEB_VIEW (webview), entry, "entry");
 
   gtk_container_add (GTK_CONTAINER (window), webview);
   gtk_widget_show_all (window);
 
   webkit_web_view_load_html (WEBKIT_WEB_VIEW (webview),
                              "<html>"
-                             "  <h1>EosWebview Test</h1>"
+                             "  <h1>MaxwellWebview Test</h1>"
                              "Lorem ipsum dolor sit amet, consectetur adipiscing elit,<br>"
                              "  <h2>A GtkButton</h2>"
-                             "   <canvas class=\"EosWebViewChild\" id=\"box\"></canvas>"
+                             "   <canvas class=\"MaxwellWebViewChild\" id=\"box\"></canvas>"
                              "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.<br>"
                              "  <h2>A HTML text input</h2>"
                              "  <input type=\"text\">"
                              "  <h2>A GtkEntry</h2>"
-                             "   <canvas class=\"EosWebViewChild\" id=\"entry\"></canvas>"
+                             "   <canvas class=\"MaxwellWebViewChild\" id=\"entry\"></canvas>"
                              "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.<br>"
                              "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.<br>"
                              "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.<br>"
                              "<br>"
-                             "<canvas class=\"EosWebViewChild\" id=\"label\"></canvas>"
+                             "<canvas class=\"MaxwellWebViewChild\" id=\"label\"></canvas>"
                              "Lorem ipsum dolor sit amet, consectetur adipiscing elit,<br>"
                              "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.<br>"
                              "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.<br>"

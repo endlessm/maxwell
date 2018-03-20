@@ -1,8 +1,8 @@
-eos_web_view_test_sources = [
-  'eos-web-view-test.c',
+maxwell_web_view_test_sources = [
+  'maxwell-web-view-test.c',
 ]
 
-executable('eos_web_view_test', eos_web_view_test_sources,
-  dependencies: eos_web_view_dep,
+executable('maxwell_web_view_test', maxwell_web_view_test_sources,
+  dependencies: maxwell_web_view_dep,
   install: false,
 )

@@ -1,5 +1,5 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
-/* eos-web-view.h
+/* maxwell-web-view.h
  *
  * Copyright (C) 2018 Endless Mobile, Inc.
  *
@@ -21,24 +21,24 @@
  *
  */
 
-#ifndef EOS_WEB_VIEW_H
-#define EOS_WEB_VIEW_H
+#ifndef MAXWELL_WEB_VIEW_H
+#define MAXWELL_WEB_VIEW_H
 
 #include <webkit2/webkit2.h>
 
 G_BEGIN_DECLS
 
-#define EOS_WEB_VIEW_INSIDE
-# include "eos-web-view-version.h"
-#undef EOS_WEB_VIEW_INSIDE
+#define MAXWELL_WEB_VIEW_INSIDE
+# include "maxwell-web-view-version.h"
+#undef MAXWELL_WEB_VIEW_INSIDE
 
-#define EOS_TYPE_WEB_VIEW (eos_web_view_get_type ())
-G_DECLARE_FINAL_TYPE (EosWebView, eos_web_view, EOS, WEB_VIEW, WebKitWebView)
+#define MAXWELL_TYPE_WEB_VIEW (maxwell_web_view_get_type ())
+G_DECLARE_FINAL_TYPE (MaxwellWebView, maxwell_web_view, MAXWELL, WEB_VIEW, WebKitWebView)
 
-GtkWidget     *eos_web_view_new ();
-void           eos_web_view_pack_child (EosWebView  *webview,
-                                        GtkWidget   *child,
-                                        const gchar *id);
+GtkWidget     *maxwell_web_view_new ();
+void           maxwell_web_view_pack_child (MaxwellWebView  *webview,
+                                            GtkWidget       *child,
+                                            const gchar     *id);
 G_END_DECLS
 
-#endif /* EOS_WEB_VIEW_H */
+#endif /* MAXWELL_WEB_VIEW_H */

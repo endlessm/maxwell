@@ -1,5 +1,5 @@
 /*
- * eos-web-view.js
+ * maxwell-web-view.js
  *
  * Copyright (C) 2018 Endless Mobile, Inc.
  *
@@ -48,7 +48,7 @@ function throttle (func, limit) {
 }
 
 function update_positions () {
-    let children = window.eos_web_view.children;
+    let children = window.maxwell_web_view.children;
     let positions = new Array ();
 
     for (let id in children) {
@@ -58,18 +58,18 @@ function update_positions () {
         let y = rect.y;
 
         /* Bail if position did not changed */
-        if (child.eos_position_x === x && child.eos_position_y === y)
+        if (child.maxwell_position_x === x && child.maxwell_position_y === y)
             continue;
 
         /* Update position in cache */
-        child.eos_position_x = x;
-        child.eos_position_y = y;
+        child.maxwell_position_x = x;
+        child.maxwell_position_y = y;
 
         /* Collect new positions */
         positions.push ({ id: id, x: x, y: y });
     }
 
-    /* Update all positions in EosWebView at once to reduce messages */
+    /* Update all positions in MaxwellWebView at once to reduce messages */
     window.webkit.messageHandlers.update_positions.postMessage(positions);
     position_timeout_id = null;
 }
@@ -93,11 +93,11 @@ function document_mutation_handler (mutations) {
             let child = mutation.addedNodes[i];
 
             if (!child.id || child.tagName !== 'CANVAS' ||
-                !child.classList.contains('EosWebViewChild'))
+                !child.classList.contains('MaxwellWebViewChild'))
                 continue;
 
             /* Save original display value */
-            child.eos_display_value = child.style.display;
+            child.maxwell_display_value = child.style.display;
 
             /* Hide all widgets by default */
             child.style.display = 'none';
@@ -107,7 +107,7 @@ function document_mutation_handler (mutations) {
             child.height = 0;
 
             /* Keep a reference in a hash table for quick access */
-            eos_web_view.children[child.id] = child;
+            maxwell_web_view.children[child.id] = child;
 
             /* Collect children to allocate */
             children.push(child.id);
@@ -136,15 +136,15 @@ observer.observe(document, {
 /* Semi Public API */
 
 /* Main entry point */
-window.eos_web_view = {}
+window.maxwell_web_view = {}
 
 /* List of children */
-window.eos_web_view.children = {}
+window.maxwell_web_view.children = {}
 
 /* child_resize()
  */
-window.eos_web_view.child_resize = function (id, width, height) {
-    let child = eos_web_view.children[id];
+window.maxwell_web_view.child_resize = function (id, width, height) {
+    let child = maxwell_web_view.children[id];
 
     if (!child)
         return;
@@ -165,14 +165,14 @@ window.eos_web_view.child_resize = function (id, width, height) {
 
 /* child_draw()
  *
- * Draw child canvas with eosimagedata:///canvasid image
+ * Draw child canvas with maxwell:///canvasid image
  *
  * Unfortunatelly WebGL does not support texture_from_pixmap but we might be able
  * to use GL to implement this function if we can get the context from WebKit
  * itself
  */
-window.eos_web_view.child_draw = function (id, image_id, x, y, width, height) {
-    let child = eos_web_view.children[id];
+window.maxwell_web_view.child_draw = function (id, image_id, x, y, width, height) {
+    let child = maxwell_web_view.children[id];
 
     if (!child)
         return;
@@ -181,7 +181,7 @@ window.eos_web_view.child_draw = function (id, image_id, x, y, width, height) {
 
     /* Get image data */
     let xhr = new XMLHttpRequest();
-    let uri = 'eosimagedata:///' + id;
+    let uri = 'maxwell:///' + id;
     if (image_id)
         uri += '?' + image_id;
     xhr.open('GET', uri, false);
@@ -212,31 +212,31 @@ window.eos_web_view.child_draw = function (id, image_id, x, y, width, height) {
  *
  * Show/hide widget element
  */
-window.eos_web_view.child_set_visible = function (id, visible) {
-    let child = eos_web_view.children[id];
+window.maxwell_web_view.child_set_visible = function (id, visible) {
+    let child = maxwell_web_view.children[id];
 
     if (child)
-        child.style.display = (visible) ? child.eos_display_value : 'none';
+        child.style.display = (visible) ? child.maxwell_display_value : 'none';
 }
 
 /* child_init()
  *
  */
-window.eos_web_view.child_init = function (id, width, height, visible) {
-    let child = eos_web_view.children[id];
+window.maxwell_web_view.child_init = function (id, width, height, visible) {
+    let child = maxwell_web_view.children[id];
 
     if (!child)
         return;
 
     child.width = width;
     child.height = height;
-    window.eos_web_view.child_draw (id, null, 0, 0, width, height);
+    window.maxwell_web_view.child_draw (id, null, 0, 0, width, height);
 
     if (visible)
-        window.eos_web_view.child_set_visible (id, visible);
+        window.maxwell_web_view.child_set_visible (id, visible);
 }
 
-/* Signal EosWebView the script has finished loading */
+/* Signal MaxwellWebView the script has finished loading */
 window.webkit.messageHandlers.script_loaded.postMessage({});
 
 })();

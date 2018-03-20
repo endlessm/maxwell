@@ -1,6 +1,6 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /*
- * eos-web-view.c
+ * maxwell-web-view.c
  *
  * Copyright (C) 2018 Endless Mobile, Inc.
  *
@@ -22,10 +22,10 @@
  *
  */
 
-#include "eos-web-view.h"
+#include "maxwell-web-view.h"
 #include "js-utils.h"
 
-struct _EosWebView
+struct _MaxwellWebView
 {
   GtkOffscreenWindow parent;
 };
@@ -36,14 +36,14 @@ typedef struct
   GdkWindow     *offscreen; /* child offscreen window */
   gchar         *id;        /* canvas-id child property */
   GtkAllocation  alloc;     /* canvas allocation in viewport coordinates */
-} EosWebViewChild;
+} MaxwellWebViewChild;
 
 typedef struct
 {
-  GList      *children;  /* List of EosWebViewChild */
-  GList      *pixbufs;   /* List of temp pixbufs to handle eosdataimage:// requests */
+  GList      *children;  /* List of MaxwellWebViewChild */
+  GList      *pixbufs;   /* List of temp pixbufs to handle maxwell:// requests */
   gboolean    script_loaded;
-} EosWebViewPrivate;
+} MaxwellWebViewPrivate;
 
 enum
 {
@@ -55,22 +55,22 @@ enum
 
 static GParamSpec *child_properties[N_CHILD_PROPERTIES];
 
-G_DEFINE_TYPE_WITH_PRIVATE (EosWebView, eos_web_view, WEBKIT_TYPE_WEB_VIEW);
+G_DEFINE_TYPE_WITH_PRIVATE (MaxwellWebView, maxwell_web_view, WEBKIT_TYPE_WEB_VIEW);
 
-#define RESOURCES_PATH "/com/endlessm/eos-web-view"
-#define EOS_WEB_VIEW_PRIVATE(d) ((EosWebViewPrivate *) eos_web_view_get_instance_private((EosWebView*)d))
-#define EOS_WEB_VIEW_ERROR eos_web_view_error_quark ()
+#define RESOURCES_PATH "/com/endlessm/maxwell-web-view"
+#define MAXWELL_WEB_VIEW_PRIVATE(d) ((MaxwellWebViewPrivate *) maxwell_web_view_get_instance_private((MaxwellWebView*)d))
+#define MAXWELL_WEB_VIEW_ERROR maxwell_web_view_error_quark ()
 
 GQuark
-eos_web_view_error_quark (void)
+maxwell_web_view_error_quark (void)
 {
-  return g_quark_from_static_string ("eos-web-view-error-quark");
+  return g_quark_from_static_string ("maxwell-web-view-error-quark");
 }
 
-static EosWebViewChild *
-eos_web_view_child_new (GtkWidget *child)
+static MaxwellWebViewChild *
+maxwell_web_view_child_new (GtkWidget *child)
 {
-  EosWebViewChild *data = g_slice_new0 (EosWebViewChild);
+  MaxwellWebViewChild *data = g_slice_new0 (MaxwellWebViewChild);
 
   data->child = g_object_ref_sink (child);
 
@@ -78,7 +78,7 @@ eos_web_view_child_new (GtkWidget *child)
 }
 
 static void
-eos_web_view_child_free (EosWebViewChild *data)
+maxwell_web_view_child_free (MaxwellWebViewChild *data)
 {
   if (data == NULL)
     return;
@@ -94,17 +94,17 @@ eos_web_view_child_free (EosWebViewChild *data)
 
   g_free (data->id);
 
-  g_slice_free (EosWebViewChild, data);
+  g_slice_free (MaxwellWebViewChild, data);
 }
 
 #define EWV_DEFINE_CHILD_GETTER(prop, type, cmpstmt) \
-EosWebViewChild * \
-get_child_data_by_##prop (EosWebViewPrivate *priv, type prop) \
+MaxwellWebViewChild * \
+get_child_data_by_##prop (MaxwellWebViewPrivate *priv, type prop) \
 { \
   GList *l;\
   for (l = priv->children; l; l = g_list_next (l)) \
     { \
-      EosWebViewChild *data = l->data; \
+      MaxwellWebViewChild *data = l->data; \
       if (cmpstmt) \
         return data; \
     } \
@@ -116,24 +116,24 @@ EWV_DEFINE_CHILD_GETTER (child, GtkWidget *, data->child == child)
 EWV_DEFINE_CHILD_GETTER (offscreen, GdkWindow *, data->offscreen == offscreen)
 
 static void
-eos_web_view_init (EosWebView *self)
+maxwell_web_view_init (MaxwellWebView *self)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (self);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (self);
 
   priv->children = NULL;
   priv->pixbufs  = NULL;
 }
 
 static void
-eos_web_view_dispose (GObject *object)
+maxwell_web_view_dispose (GObject *object)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (object);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (object);
 
   g_list_free_full (priv->pixbufs, g_object_unref);
   priv->pixbufs = NULL;
 
   /* GtkContainer dispose will free children */
-  G_OBJECT_CLASS (eos_web_view_parent_class)->dispose (object);
+  G_OBJECT_CLASS (maxwell_web_view_parent_class)->dispose (object);
 }
 
 static void
@@ -141,8 +141,8 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
                                   gpointer                userdata)
 {
   const gchar *path = webkit_uri_scheme_request_get_path (request);
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (userdata);
-  EosWebViewChild *data;
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (userdata);
+  MaxwellWebViewChild *data;
 
   if (path && *path == '/' && (data = get_child_data_by_id (priv, &path[1])))
     {
@@ -151,7 +151,7 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
       gchar *pixbuf_id;
 
       /*
-       * eosimagedata:///id[?pixbuf]
+       * maxwell:///id[?pixbuf]
        *
        * Where 'id' is the child id and 'pixbuf' is an optional GdkPixbuf
        * pointer encoded in base64
@@ -227,16 +227,16 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
     }
 
   webkit_uri_scheme_request_finish_error (request,
-                                          g_error_new_literal (EOS_WEB_VIEW_ERROR, 0,
+                                          g_error_new_literal (MAXWELL_WEB_VIEW_ERROR, 0,
                                                                "Could not find imagedata uri"));
 }
 
 static void
 handle_script_message_update_positions (WebKitUserContentManager *manager,
                                         WebKitJavascriptResult   *result,
-                                        EosWebView               *webview)
+                                        MaxwellWebView           *webview)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
   JSValueRef value = webkit_javascript_result_get_value (result);
 
@@ -251,7 +251,7 @@ handle_script_message_update_positions (WebKitUserContentManager *manager,
         {
           JSObjectRef obj = JSValueToObject (context, val, NULL);
           gchar *child_id = _js_object_get_string (context, obj, "id");
-          EosWebViewChild *data = get_child_data_by_id (priv, child_id);
+          MaxwellWebViewChild *data = get_child_data_by_id (priv, child_id);
 
           if (data)
             {
@@ -270,7 +270,7 @@ handle_script_message_update_positions (WebKitUserContentManager *manager,
 }
 
 static gboolean
-child_allocate (EosWebViewChild *data)
+child_allocate (MaxwellWebViewChild *data)
 {
   GtkRequisition natural;
   GtkAllocation alloc;
@@ -298,14 +298,14 @@ child_allocate (EosWebViewChild *data)
 }
 
 static void
-child_update_visibility (EosWebView *webview, GtkWidget *child)
+child_update_visibility (MaxwellWebView *webview, GtkWidget *child)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
-  EosWebViewChild *data = get_child_data_by_child (priv, child);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
+  MaxwellWebViewChild *data = get_child_data_by_child (priv, child);
 
   if (priv->script_loaded && data && data->id)
     _js_run (WEBKIT_WEB_VIEW (webview),
-             "eos_web_view.child_set_visible ('%s', %s);",
+             "maxwell_web_view.child_set_visible ('%s', %s);",
              data->id,
              gtk_widget_get_visible (child) ? "true" : "false");
 }
@@ -313,9 +313,9 @@ child_update_visibility (EosWebView *webview, GtkWidget *child)
 static void
 handle_script_message_children_allocate (WebKitUserContentManager *manager,
                                          WebKitJavascriptResult   *result,
-                                         EosWebView               *webview)
+                                         MaxwellWebView           *webview)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
   JSValueRef value = webkit_javascript_result_get_value (result);
 
@@ -330,14 +330,14 @@ handle_script_message_children_allocate (WebKitUserContentManager *manager,
              JSValueIsString (context, val))
         {
           gchar *id = _js_get_string (context, val);
-          EosWebViewChild *data = get_child_data_by_id (priv, id);
+          MaxwellWebViewChild *data = get_child_data_by_id (priv, id);
 
           if (data)
             {
               child_allocate (data);
 
               /* Collect children to initialize */
-              g_string_append_printf (script, "eos_web_view.child_init ('%s', %d, %d, %s);\n",
+              g_string_append_printf (script, "maxwell_web_view.child_init ('%s', %d, %d, %s);\n",
                                       data->id, data->alloc.width, data->alloc.height,
                                       gtk_widget_get_visible (data->child) ? "true" : "false");
             }
@@ -357,28 +357,28 @@ handle_script_message_children_allocate (WebKitUserContentManager *manager,
 static void
 handle_script_message_script_loaded (WebKitUserContentManager *manager,
                                      WebKitJavascriptResult   *result,
-                                     EosWebView               *webview)
+                                     MaxwellWebView           *webview)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   priv->script_loaded = TRUE;
 }
 
 static void
-eos_web_view_set_child_property (GtkContainer *container,
-                                 GtkWidget    *child,
-                                 guint         property_id,
-                                 const GValue *value,
-                                 GParamSpec   *pspec)
+maxwell_web_view_set_child_property (GtkContainer *container,
+                                     GtkWidget    *child,
+                                     guint         property_id,
+                                     const GValue *value,
+                                     GParamSpec   *pspec)
 {
-  g_return_if_fail (EOS_IS_WEB_VIEW (container));
+  g_return_if_fail (MAXWELL_IS_WEB_VIEW (container));
   g_return_if_fail (GTK_IS_WIDGET (child));
 
   switch (property_id)
     {
       case CHILD_PROP_CANVAS_ID:
         {
-          EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (container);
-          EosWebViewChild *data = get_child_data_by_child (priv, child);
+          MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (container);
+          MaxwellWebViewChild *data = get_child_data_by_child (priv, child);
           if (data)
             {
               g_free (data->id);
@@ -393,21 +393,21 @@ eos_web_view_set_child_property (GtkContainer *container,
 }
 
 static void
-eos_web_view_get_child_property (GtkContainer *container,
-                                 GtkWidget    *child,
-                                 guint         property_id,
-                                 GValue       *value,
-                                 GParamSpec   *pspec)
+maxwell_web_view_get_child_property (GtkContainer *container,
+                                     GtkWidget    *child,
+                                     guint         property_id,
+                                     GValue       *value,
+                                     GParamSpec   *pspec)
 {
-  g_return_if_fail (EOS_IS_WEB_VIEW (container));
+  g_return_if_fail (MAXWELL_IS_WEB_VIEW (container));
   g_return_if_fail (GTK_IS_WIDGET (child));
 
   switch (property_id)
     {
       case CHILD_PROP_CANVAS_ID:
         {
-          EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (container);
-          EosWebViewChild *data = get_child_data_by_child (priv, child);
+          MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (container);
+          MaxwellWebViewChild *data = get_child_data_by_child (priv, child);
           g_value_set_string (value, (data) ? data->id : NULL);
         }
       break;
@@ -424,7 +424,7 @@ eos_web_view_get_child_property (GtkContainer *container,
   webkit_user_content_manager_register_script_message_handler (manager, #name);
 
 static void
-eos_web_view_constructed (GObject *object)
+maxwell_web_view_constructed (GObject *object)
 {
   WebKitWebView *webview = WEBKIT_WEB_VIEW (object);
   WebKitUserContentManager *content_manager;
@@ -433,7 +433,7 @@ eos_web_view_constructed (GObject *object)
   WebKitUserScript *script;
   GBytes *script_source;
 
-  G_OBJECT_CLASS (eos_web_view_parent_class)->constructed (object);
+  G_OBJECT_CLASS (maxwell_web_view_parent_class)->constructed (object);
 
   /* Give XMlHttpRequest a chance to work */
   g_object_set (webkit_web_view_get_settings (webview),
@@ -446,14 +446,14 @@ eos_web_view_constructed (GObject *object)
   context = webkit_web_view_get_context (webview);
   security_manager = webkit_web_context_get_security_manager (context);
   webkit_security_manager_register_uri_scheme_as_cors_enabled (security_manager,
-                                                               "eosimagedata");
-  webkit_web_context_register_uri_scheme (context, "eosimagedata",
+                                                               "maxwell");
+  webkit_web_context_register_uri_scheme (context, "maxwell",
                                           on_image_data_uri_scheme_request,
                                           object, NULL);
 
   /* Add script */
   content_manager = webkit_web_view_get_user_content_manager (webview);
-  script_source = g_resources_lookup_data (RESOURCES_PATH"/eos-web-view.js",
+  script_source = g_resources_lookup_data (RESOURCES_PATH"/maxwell-web-view.js",
                                            G_RESOURCE_LOOKUP_FLAGS_NONE,
                                            NULL);
   script = webkit_user_script_new (g_bytes_get_data (script_source, NULL),
@@ -473,28 +473,28 @@ eos_web_view_constructed (GObject *object)
 }
 
 static void
-on_child_visible_notify (GObject    *object,
-                         GParamSpec *pspec,
-                         EosWebView *webview)
+on_child_visible_notify (GObject        *object,
+                         GParamSpec     *pspec,
+                         MaxwellWebView *webview)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
 
   if (priv->script_loaded)
     child_update_visibility (webview, GTK_WIDGET (object));
 }
 
 static void
-eos_web_view_add (GtkContainer *container, GtkWidget *child)
+maxwell_web_view_add (GtkContainer *container, GtkWidget *child)
 {
-  EosWebViewPrivate *priv;
-  EosWebViewChild *data;
+  MaxwellWebViewPrivate *priv;
+  MaxwellWebViewChild *data;
 
-  g_return_if_fail (EOS_IS_WEB_VIEW (container));
-  priv = EOS_WEB_VIEW_PRIVATE (container);
+  g_return_if_fail (MAXWELL_IS_WEB_VIEW (container));
+  priv = MAXWELL_WEB_VIEW_PRIVATE (container);
   g_return_if_fail (GTK_IS_WIDGET (child));
   g_return_if_fail (gtk_widget_get_parent (child) == NULL);
 
-  data = eos_web_view_child_new (child);
+  data = maxwell_web_view_child_new (child);
   g_signal_connect_object (child, "notify::visible",
                            G_CALLBACK (on_child_visible_notify),
                            container, 0);
@@ -505,35 +505,35 @@ eos_web_view_add (GtkContainer *container, GtkWidget *child)
 }
 
 static void
-eos_web_view_remove (GtkContainer *container, GtkWidget *child)
+maxwell_web_view_remove (GtkContainer *container, GtkWidget *child)
 {
-  EosWebViewPrivate *priv;
-  EosWebViewChild *data;
+  MaxwellWebViewPrivate *priv;
+  MaxwellWebViewChild *data;
 
-  g_return_if_fail (EOS_IS_WEB_VIEW (container));
-  priv = EOS_WEB_VIEW_PRIVATE (container);
+  g_return_if_fail (MAXWELL_IS_WEB_VIEW (container));
+  priv = MAXWELL_WEB_VIEW_PRIVATE (container);
   g_return_if_fail (GTK_IS_WIDGET (child));
   g_return_if_fail (gtk_widget_get_parent (child) == GTK_WIDGET (container));
 
   if ((data = get_child_data_by_child (priv, child)))
     {
       priv->children = g_list_remove (priv->children, data);
-      eos_web_view_child_free (data);
+      maxwell_web_view_child_free (data);
     }
 
   gtk_widget_unparent (child);
 }
 
 static void
-offscreen_to_parent (GdkWindow  *offscreen_window,
-                     double      offscreen_x,
-                     double      offscreen_y,
-                     double     *parent_x,
-                     double     *parent_y,
-                     EosWebView *webview)
+offscreen_to_parent (GdkWindow      *offscreen_window,
+                     double          offscreen_x,
+                     double          offscreen_y,
+                     double         *parent_x,
+                     double         *parent_y,
+                     MaxwellWebView *webview)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
-  EosWebViewChild *data = get_child_data_by_offscreen (priv, offscreen_window);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
+  MaxwellWebViewChild *data = get_child_data_by_offscreen (priv, offscreen_window);
 
   if (data)
     {
@@ -548,15 +548,15 @@ offscreen_to_parent (GdkWindow  *offscreen_window,
 }
 
 static void
-offscreen_from_parent (GdkWindow  *window,
-                       double      parent_x,
-                       double      parent_y,
-                       double     *offscreen_x,
-                       double     *offscreen_y,
-                       EosWebView *webview)
+offscreen_from_parent (GdkWindow      *window,
+                       double          parent_x,
+                       double          parent_y,
+                       double         *offscreen_x,
+                       double         *offscreen_y,
+                       MaxwellWebView *webview)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
-  EosWebViewChild *data = get_child_data_by_offscreen (priv, window);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
+  MaxwellWebViewChild *data = get_child_data_by_offscreen (priv, window);
 
   if (data)
     {
@@ -571,17 +571,17 @@ offscreen_from_parent (GdkWindow  *window,
 }
 
 static GdkWindow *
-pick_offscreen_child (GdkWindow  *offscreen_window,
-                      double      widget_x,
-                      double      widget_y,
-                      EosWebView *webview)
+pick_offscreen_child (GdkWindow      *offscreen_window,
+                      double          widget_x,
+                      double          widget_y,
+                      MaxwellWebView *webview)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   GList *l;
 
   for (l = priv->children; l; l = g_list_next (l))
     {
-      EosWebViewChild *data = l->data;
+      MaxwellWebViewChild *data = l->data;
       GtkAllocation *alloc = &data->alloc;
 
       if (widget_x >= alloc->x && widget_x <= alloc->x + alloc->width &&
@@ -593,7 +593,7 @@ pick_offscreen_child (GdkWindow  *offscreen_window,
 }
 
 static void
-ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
+ensure_offscreen (GtkWidget *webview, MaxwellWebViewChild *data)
 {
   GdkScreen *screen = gtk_widget_get_screen (webview);
   GdkWindowAttr attributes;
@@ -630,12 +630,12 @@ ensure_offscreen (GtkWidget *webview, EosWebViewChild *data)
 }
 
 static void
-eos_web_view_realize (GtkWidget *widget)
+maxwell_web_view_realize (GtkWidget *widget)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
   GList *l;
 
-  GTK_WIDGET_CLASS (eos_web_view_parent_class)->realize (widget);
+  GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->realize (widget);
 
   g_signal_connect_object (gtk_widget_get_window (widget),
                            "pick-embedded-child",
@@ -645,24 +645,24 @@ eos_web_view_realize (GtkWidget *widget)
 
   for (l = priv->children; l; l = g_list_next (l))
     {
-      EosWebViewChild *data = l->data;
+      MaxwellWebViewChild *data = l->data;
 
       ensure_offscreen (widget, data);
 
       if (gtk_widget_get_visible (data->child))
-        child_update_visibility (EOS_WEB_VIEW (widget), l->data);
+        child_update_visibility (MAXWELL_WEB_VIEW (widget), l->data);
     }
 }
 
 static void
-eos_web_view_unrealize (GtkWidget *widget)
+maxwell_web_view_unrealize (GtkWidget *widget)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
   GList *l;
 
   for (l = priv->children; l; l = g_list_next (l))
     {
-      EosWebViewChild *data = l->data;
+      MaxwellWebViewChild *data = l->data;
 
       if (!data->offscreen)
         continue;
@@ -671,17 +671,17 @@ eos_web_view_unrealize (GtkWidget *widget)
       gdk_window_destroy (data->offscreen);
       data->offscreen = NULL;
 
-      child_update_visibility (EOS_WEB_VIEW (widget), data->child);
+      child_update_visibility (MAXWELL_WEB_VIEW (widget), data->child);
     }
 
-  GTK_WIDGET_CLASS (eos_web_view_parent_class)->unrealize (widget);
+  GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->unrealize (widget);
 }
 
 static gboolean
-eos_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
+maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
-  EosWebViewChild *data = get_child_data_by_offscreen (priv, event->window);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
+  MaxwellWebViewChild *data = get_child_data_by_offscreen (priv, event->window);
 
   /* Dont do anything if the support script did not finished loading */
   if (!priv->script_loaded)
@@ -704,7 +704,7 @@ eos_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
       priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
 
       _js_run (WEBKIT_WEB_VIEW (widget),
-               "eos_web_view.child_draw('%s', '%s', %d, %d, %d, %d);",
+               "maxwell_web_view.child_draw('%s', '%s', %d, %d, %d, %d);",
                data->id,
                img_id,
                event->area.x,
@@ -719,42 +719,42 @@ eos_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
 }
 
 static void
-eos_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
+maxwell_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
   GString *script = g_string_new ("");
   GList *l;
 
   for (l = priv->children; l; l = g_list_next (l))
     {
-      EosWebViewChild *data = l->data;
+      MaxwellWebViewChild *data = l->data;
 
       if (child_allocate (data) && data->offscreen)
-        g_string_append_printf (script, "eos_web_view.child_resize ('%s', %d, %d);\n",
+        g_string_append_printf (script, "maxwell_web_view.child_resize ('%s', %d, %d);\n",
                                 data->id, data->alloc.width, data->alloc.height);
     }
 
   _js_run_string (WEBKIT_WEB_VIEW (widget), script);
 
-  GTK_WIDGET_CLASS (eos_web_view_parent_class)->size_allocate (widget, allocation);
+  GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->size_allocate (widget, allocation);
 }
 
 static gboolean
-eos_web_view_draw (GtkWidget *widget, cairo_t *cr)
+maxwell_web_view_draw (GtkWidget *widget, cairo_t *cr)
 {
   GdkWindow *window = gtk_widget_get_window (widget);
   if (gtk_cairo_should_draw_window (cr, window))
     {
-      GTK_WIDGET_CLASS (eos_web_view_parent_class)->draw (widget, cr);
+      GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->draw (widget, cr);
     }
   else
     {
-      EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
+      MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
       GList *l;
 
       for (l = priv->children; l; l = g_list_next (l))
         {
-          EosWebViewChild *data = l->data;
+          MaxwellWebViewChild *data = l->data;
 
           if (!gtk_cairo_should_draw_window (cr, data->offscreen))
             continue;
@@ -775,67 +775,67 @@ eos_web_view_draw (GtkWidget *widget, cairo_t *cr)
 }
 
 static void
-eos_web_view_forall (GtkContainer *container,
-                     gboolean      include_internals,
-                     GtkCallback   callback,
-                     gpointer      callback_data)
+maxwell_web_view_forall (GtkContainer *container,
+                         gboolean      include_internals,
+                         GtkCallback   callback,
+                         gpointer      callback_data)
 {
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (container);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (container);
   GList *l;
 
   g_return_if_fail (callback != NULL);
 
   for (l = priv->children; l; l = g_list_next (l))
     {
-      EosWebViewChild *data = l->data;
+      MaxwellWebViewChild *data = l->data;
       (*callback) (data->child, callback_data);
     }
 }
 
 static gboolean
-eos_web_view_button_press_event (GtkWidget *widget, GdkEventButton *event)
+maxwell_web_view_button_press_event (GtkWidget *widget, GdkEventButton *event)
 {
   /* Ignore button events from offscreen windows */
   if (gdk_offscreen_window_get_embedder (event->window) == gtk_widget_get_window (widget))
     return TRUE;
 
-  return GTK_WIDGET_CLASS (eos_web_view_parent_class)->button_press_event (widget, event);
+  return GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->button_press_event (widget, event);
 }
 
 static gboolean
-eos_web_view_button_release_event (GtkWidget *widget, GdkEventButton *event)
+maxwell_web_view_button_release_event (GtkWidget *widget, GdkEventButton *event)
 {
   /* Ignore button events from offscreen windows */
   if (gdk_offscreen_window_get_embedder (event->window) == gtk_widget_get_window (widget))
     return TRUE;
 
-  return GTK_WIDGET_CLASS (eos_web_view_parent_class)->button_release_event (widget, event);
+  return GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->button_release_event (widget, event);
 }
 
 static void
-eos_web_view_class_init (EosWebViewClass *klass)
+maxwell_web_view_class_init (MaxwellWebViewClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
   GtkContainerClass *container_class = GTK_CONTAINER_CLASS (klass);
 
-  object_class->dispose = eos_web_view_dispose;
-  object_class->constructed = eos_web_view_constructed;
+  object_class->dispose = maxwell_web_view_dispose;
+  object_class->constructed = maxwell_web_view_constructed;
 
-  widget_class->realize = eos_web_view_realize;
-  widget_class->unrealize = eos_web_view_unrealize;
-  widget_class->size_allocate = eos_web_view_size_allocate;
-  widget_class->draw = eos_web_view_draw;
-  widget_class->damage_event = eos_web_view_damage_event;
+  widget_class->realize = maxwell_web_view_realize;
+  widget_class->unrealize = maxwell_web_view_unrealize;
+  widget_class->size_allocate = maxwell_web_view_size_allocate;
+  widget_class->draw = maxwell_web_view_draw;
+  widget_class->damage_event = maxwell_web_view_damage_event;
 
-  widget_class->button_press_event = eos_web_view_button_press_event;
-  widget_class->button_release_event = eos_web_view_button_release_event;
+  widget_class->button_press_event = maxwell_web_view_button_press_event;
+  widget_class->button_release_event = maxwell_web_view_button_release_event;
 
-  container_class->add = eos_web_view_add;
-  container_class->remove = eos_web_view_remove;
-  container_class->forall = eos_web_view_forall;
-  container_class->set_child_property = eos_web_view_set_child_property;
-  container_class->get_child_property = eos_web_view_get_child_property;
+  container_class->add = maxwell_web_view_add;
+  container_class->remove = maxwell_web_view_remove;
+  container_class->forall = maxwell_web_view_forall;
+  container_class->set_child_property = maxwell_web_view_set_child_property;
+  container_class->get_child_property = maxwell_web_view_get_child_property;
 
   child_properties[CHILD_PROP_CANVAS_ID] =
     g_param_spec_string ("canvas-id",
@@ -852,17 +852,17 @@ eos_web_view_class_init (EosWebViewClass *klass)
 /* Public API */
 
 GtkWidget *
-eos_web_view_new ()
+maxwell_web_view_new ()
 {
-  return (GtkWidget *) g_object_new (EOS_TYPE_WEB_VIEW, NULL);
+  return (GtkWidget *) g_object_new (MAXWELL_TYPE_WEB_VIEW, NULL);
 }
 
 void
-eos_web_view_pack_child (EosWebView  *webview,
-                         GtkWidget   *child,
-                         const gchar *id)
+maxwell_web_view_pack_child (MaxwellWebView  *webview,
+                             GtkWidget       *child,
+                             const gchar     *id)
 {
-  g_return_if_fail (EOS_IS_WEB_VIEW (webview));
+  g_return_if_fail (MAXWELL_IS_WEB_VIEW (webview));
   g_return_if_fail (GTK_IS_WIDGET (child));
   g_return_if_fail (id != NULL);
   g_return_if_fail (*id != '\0');
