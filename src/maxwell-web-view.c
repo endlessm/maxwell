@@ -371,11 +371,19 @@ maxwell_web_view_set_child_property (GtkContainer *container,
       case CHILD_PROP_CANVAS_ID:
         {
           MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (container);
-          ChildData *data = get_child_data_by_child (priv, child);
-          if (data)
+          const gchar *id = g_value_get_string (value);
+          ChildData *data;
+
+          if (get_child_data_by_id (priv, id))
+            {
+              g_warning ("Canvas id '%s' is not unique", id);
+              return;
+            }
+
+          if ((data = get_child_data_by_child (priv, child)))
             {
               g_free (data->id);
-              data->id = g_strdup (g_value_get_string (value));
+              data->id = g_strdup (id);
             }
         }
       break;

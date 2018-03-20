@@ -93,7 +93,7 @@ function document_mutation_handler (mutations) {
             let child = mutation.addedNodes[i];
 
             if (!child.id || child.tagName !== 'CANVAS' ||
-                !child.classList.contains('MaxwellWebViewChild'))
+                !child.classList.contains('GtkWidget'))
                 continue;
 
             /* Save original display value */
