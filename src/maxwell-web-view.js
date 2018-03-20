@@ -48,7 +48,7 @@ function throttle (func, limit) {
 }
 
 function update_positions () {
-    let children = window.maxwell_web_view.children;
+    let children = window.maxwell.children;
     let positions = new Array ();
 
     for (let id in children) {
@@ -70,7 +70,7 @@ function update_positions () {
     }
 
     /* Update all positions in MaxwellWebView at once to reduce messages */
-    window.webkit.messageHandlers.update_positions.postMessage(positions);
+    window.webkit.messageHandlers.maxwell_update_positions.postMessage(positions);
     position_timeout_id = null;
 }
 
@@ -107,7 +107,7 @@ function document_mutation_handler (mutations) {
             child.height = 0;
 
             /* Keep a reference in a hash table for quick access */
-            maxwell_web_view.children[child.id] = child;
+            maxwell.children[child.id] = child;
 
             /* Collect children to allocate */
             children.push(child.id);
@@ -117,7 +117,7 @@ function document_mutation_handler (mutations) {
     /* Allocate GtkWidget, canvas size will change the first time
      * child_draw() is called and we actually have something to show
      */
-    window.webkit.messageHandlers.children_allocate.postMessage(children);
+    window.webkit.messageHandlers.maxwell_children_allocate.postMessage(children);
 
     /* Extra paranoid, update positions if anything changes in the DOM tree!
      * ideally it would be nice to directly observe BoundingClientRect changes.
@@ -136,15 +136,15 @@ observer.observe(document, {
 /* Semi Public API */
 
 /* Main entry point */
-window.maxwell_web_view = {}
+window.maxwell = {}
 
 /* List of children */
-window.maxwell_web_view.children = {}
+window.maxwell.children = {}
 
 /* child_resize()
  */
-window.maxwell_web_view.child_resize = function (id, width, height) {
-    let child = maxwell_web_view.children[id];
+window.maxwell.child_resize = function (id, width, height) {
+    let child = maxwell.children[id];
 
     if (!child)
         return;
@@ -171,8 +171,8 @@ window.maxwell_web_view.child_resize = function (id, width, height) {
  * to use GL to implement this function if we can get the context from WebKit
  * itself
  */
-window.maxwell_web_view.child_draw = function (id, image_id, x, y, width, height) {
-    let child = maxwell_web_view.children[id];
+window.maxwell.child_draw = function (id, image_id, x, y, width, height) {
+    let child = maxwell.children[id];
 
     if (!child)
         return;
@@ -212,8 +212,8 @@ window.maxwell_web_view.child_draw = function (id, image_id, x, y, width, height
  *
  * Show/hide widget element
  */
-window.maxwell_web_view.child_set_visible = function (id, visible) {
-    let child = maxwell_web_view.children[id];
+window.maxwell.child_set_visible = function (id, visible) {
+    let child = maxwell.children[id];
 
     if (child)
         child.style.display = (visible) ? child.maxwell_display_value : 'none';
@@ -222,21 +222,21 @@ window.maxwell_web_view.child_set_visible = function (id, visible) {
 /* child_init()
  *
  */
-window.maxwell_web_view.child_init = function (id, width, height, visible) {
-    let child = maxwell_web_view.children[id];
+window.maxwell.child_init = function (id, width, height, visible) {
+    let child = maxwell.children[id];
 
     if (!child)
         return;
 
     child.width = width;
     child.height = height;
-    window.maxwell_web_view.child_draw (id, null, 0, 0, width, height);
+    window.maxwell.child_draw (id, null, 0, 0, width, height);
 
     if (visible)
-        window.maxwell_web_view.child_set_visible (id, visible);
+        window.maxwell.child_set_visible (id, visible);
 }
 
 /* Signal MaxwellWebView the script has finished loading */
-window.webkit.messageHandlers.script_loaded.postMessage({});
+window.webkit.messageHandlers.maxwell_script_loaded.postMessage({});
 
 })();

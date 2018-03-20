@@ -305,7 +305,7 @@ child_update_visibility (MaxwellWebView *webview, GtkWidget *child)
 
   if (priv->script_loaded && data && data->id)
     _js_run (WEBKIT_WEB_VIEW (webview),
-             "maxwell_web_view.child_set_visible ('%s', %s);",
+             "maxwell.child_set_visible ('%s', %s);",
              data->id,
              gtk_widget_get_visible (child) ? "true" : "false");
 }
@@ -337,7 +337,7 @@ handle_script_message_children_allocate (WebKitUserContentManager *manager,
               child_allocate (data);
 
               /* Collect children to initialize */
-              g_string_append_printf (script, "maxwell_web_view.child_init ('%s', %d, %d, %s);\n",
+              g_string_append_printf (script, "maxwell.child_init ('%s', %d, %d, %s);\n",
                                       data->id, data->alloc.width, data->alloc.height,
                                       gtk_widget_get_visible (data->child) ? "true" : "false");
             }
@@ -418,10 +418,10 @@ maxwell_web_view_get_child_property (GtkContainer *container,
 }
 
 #define EWV_DEFINE_MSG_HANDLER(manager, name, object) \
-  g_signal_connect_object (manager, "script-message-received::"#name,\
+  g_signal_connect_object (manager, "script-message-received::maxwell_"#name,\
                            G_CALLBACK (handle_script_message_##name),\
                            object, 0);\
-  webkit_user_content_manager_register_script_message_handler (manager, #name);
+  webkit_user_content_manager_register_script_message_handler (manager, "maxwell_"#name);
 
 static void
 maxwell_web_view_constructed (GObject *object)
@@ -704,7 +704,7 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
       priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
 
       _js_run (WEBKIT_WEB_VIEW (widget),
-               "maxwell_web_view.child_draw('%s', '%s', %d, %d, %d, %d);",
+               "maxwell.child_draw('%s', '%s', %d, %d, %d, %d);",
                data->id,
                img_id,
                event->area.x,
@@ -730,7 +730,7 @@ maxwell_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
       MaxwellWebViewChild *data = l->data;
 
       if (child_allocate (data) && data->offscreen)
-        g_string_append_printf (script, "maxwell_web_view.child_resize ('%s', %d, %d);\n",
+        g_string_append_printf (script, "maxwell.child_resize ('%s', %d, %d);\n",
                                 data->id, data->alloc.width, data->alloc.height);
     }
 
