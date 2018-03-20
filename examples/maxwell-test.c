@@ -1,6 +1,6 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /*
- * maxwell-web-view-test.c
+ * maxwell-test.c
  *
  * Copyright (C) 2018 Endless Mobile, Inc.
  *
@@ -22,7 +22,7 @@
  *
  */
 
-#include "maxwell-web-view.h"
+#include "maxwell.h"
 
 static void
 on_button_clicked (GtkWidget *button, GtkLabel *label)

@@ -1,4 +1,4 @@
-project('maxwell-web-view','c',
+project('maxwell','c',
         version: '0.1.0',
         default_options: [
           'buildtype=debugoptimized',
@@ -12,7 +12,7 @@ project('maxwell-web-view','c',
 config_h = configuration_data()
 
 configure_file(
-  output: 'maxwell-web-view-config.h',
+  output: 'maxwell-config.h',
   configuration: config_h,
 )
 add_project_arguments([

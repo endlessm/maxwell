@@ -1,5 +1,5 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
-/* maxwell-web-view.h
+/* maxwell.h
  *
  * Copyright (C) 2018 Endless Mobile, Inc.
  *
@@ -21,20 +21,23 @@
  *
  */
 
-#ifndef MAXWELL_WEB_VIEW_H
-#define MAXWELL_WEB_VIEW_H
+#ifndef MAXWELL_H
+#define MAXWELL_H
 
-#include <webkit2/webkit2.h>
+#include "maxwell-web-view.h"
 
 G_BEGIN_DECLS
 
-#define MAXWELL_TYPE_WEB_VIEW (maxwell_web_view_get_type ())
-G_DECLARE_FINAL_TYPE (MaxwellWebView, maxwell_web_view, MAXWELL, WEB_VIEW, WebKitWebView)
+#define MAXWELL_INSIDE
+# include "maxwell-version.h"
+#undef MAXWELL_INSIDE
 
-GtkWidget     *maxwell_web_view_new ();
-void           maxwell_web_view_pack_child (MaxwellWebView  *webview,
-                                            GtkWidget       *child,
-                                            const gchar     *id);
+#define MAXWELL_ERROR (maxwell_error_quark ())
+
+GQuark maxwell_error_quark (void);
+
 G_END_DECLS
 
-#endif /* MAXWELL_WEB_VIEW_H */
+#endif /* MAXWELL_H */
+
+

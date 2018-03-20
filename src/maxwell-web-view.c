@@ -22,7 +22,7 @@
  *
  */
 
-#include "maxwell-web-view.h"
+#include "maxwell.h"
 #include "js-utils.h"
 
 struct _MaxwellWebView
@@ -57,15 +57,8 @@ static GParamSpec *child_properties[N_CHILD_PROPERTIES];
 
 G_DEFINE_TYPE_WITH_PRIVATE (MaxwellWebView, maxwell_web_view, WEBKIT_TYPE_WEB_VIEW);
 
-#define RESOURCES_PATH "/com/endlessm/maxwell-web-view"
+#define RESOURCES_PATH "/com/endlessm/maxwell"
 #define MAXWELL_WEB_VIEW_PRIVATE(d) ((MaxwellWebViewPrivate *) maxwell_web_view_get_instance_private((MaxwellWebView*)d))
-#define MAXWELL_WEB_VIEW_ERROR maxwell_web_view_error_quark ()
-
-GQuark
-maxwell_web_view_error_quark (void)
-{
-  return g_quark_from_static_string ("maxwell-web-view-error-quark");
-}
 
 static ChildData *
 maxwell_web_view_child_new (GtkWidget *child)
@@ -227,7 +220,7 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
     }
 
   webkit_uri_scheme_request_finish_error (request,
-                                          g_error_new_literal (MAXWELL_WEB_VIEW_ERROR, 0,
+                                          g_error_new_literal (MAXWELL_ERROR, 0,
                                                                "Could not find imagedata uri"));
 }
 
