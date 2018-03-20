@@ -1,7 +1,12 @@
 project('eos-web-view','c',
-  version: '0.1.0',
-  license: 'LGPLv2.1+',
-  meson_version: '>= 0.40.0',
+        version: '0.1.0',
+        default_options: [
+          'buildtype=debugoptimized',
+          'c_std=c99',
+          'warning_level=1'
+        ],
+        license: 'LGPLv2.1+',
+        meson_version: '>= 0.40.0',
 )
 
 config_h = configuration_data()

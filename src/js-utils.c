@@ -24,36 +24,50 @@
 
 #include "js-utils.h"
 
-void
+static void
 _js_run_finish_handler (GObject *object, GAsyncResult *result, gpointer data)
 {
-    WebKitJavascriptResult *js_result;
-    gchar *script = data;
-    GError *error = NULL;
+  WebKitJavascriptResult *js_result;
+  GString *script = data;
+  GError *error = NULL;
 
-    js_result = webkit_web_view_run_javascript_finish (WEBKIT_WEB_VIEW (object),
-                                                       result,
-                                                       &error);
-    if (!js_result)
-      {
-        g_warning ("Error running javascript: %s\n%s", script, error->message);
-        g_error_free (error);
-      }
-    g_free (script);
+  js_result = webkit_web_view_run_javascript_finish (WEBKIT_WEB_VIEW (object),
+                                                     result, &error);
+  if (!js_result)
+    {
+      g_warning ("Error running javascript: %s\n%s", script->str, error->message);
+      g_error_free (error);
+    }
+
+  g_string_free (script, TRUE);
 }
 
 void
 _js_run (WebKitWebView *webview, const gchar *format, ...)
 {
+  GString *script = g_string_new ("");
   va_list args;
-  gchar *script;
 
   va_start (args, format);
-  script = g_strdup_vprintf (format, args);
+  g_string_append_vprintf (script, format, args);
   va_end (args);
 
-  webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview), script, NULL,
-                                  _js_run_finish_handler, NULL);
+  webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
+                                  script->str, NULL,
+                                  _js_run_finish_handler,
+                                  script);
+}
+
+void
+_js_run_string (WebKitWebView *webview, GString *script)
+{
+  if (script->len)
+    webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
+                                    script->str, NULL,
+                                    _js_run_finish_handler,
+                                    script);
+  else
+    g_string_free (script, TRUE);
 }
 
 gchar *

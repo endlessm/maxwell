@@ -35,7 +35,9 @@ main (int argc, char *argv[])
 {
   GtkWidget *window;
   GtkWidget *webview;
+  GtkWidget *box;
   GtkWidget *button;
+  GtkWidget *label;
   GtkWidget *entry;
 
   gtk_init (&argc, &argv);
@@ -46,11 +48,25 @@ main (int argc, char *argv[])
 
   webview = eos_web_view_new ();
 
-  entry = gtk_entry_new ();
-  button = gtk_button_new_with_label ("A button inside an EosWebView");
-  g_signal_connect (button, "clicked", G_CALLBACK (on_button_clicked), NULL);
+  box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 4);
 
-  eos_web_view_pack_child (EOS_WEB_VIEW (webview), button, "button");
+  entry = gtk_entry_new ();
+
+  button = gtk_button_new_with_label ("A GtkButton");
+  g_signal_connect (button, "clicked", G_CALLBACK (on_button_clicked), NULL);
+  gtk_container_add (GTK_CONTAINER (box), button);
+
+  label = gtk_label_new ("a GtkLabel");
+  gtk_container_add (GTK_CONTAINER (box), label);
+
+  button = gtk_button_new_with_label ("Another button");
+  g_signal_connect (button, "clicked", G_CALLBACK (on_button_clicked), NULL);
+  gtk_container_add (GTK_CONTAINER (box), button);
+
+  label = gtk_label_new ("another GtkLabel");
+
+  eos_web_view_pack_child (EOS_WEB_VIEW (webview), label, "label");
+  eos_web_view_pack_child (EOS_WEB_VIEW (webview), box, "box");
   eos_web_view_pack_child (EOS_WEB_VIEW (webview), entry, "entry");
 
   gtk_container_add (GTK_CONTAINER (window), webview);
@@ -61,7 +77,7 @@ main (int argc, char *argv[])
                              "  <h1>EosWebview Test</h1>"
                              "Lorem ipsum dolor sit amet, consectetur adipiscing elit,<br>"
                              "  <h2>A GtkButton</h2>"
-                             "   <canvas class=\"EosWebViewChild\" id=\"button\"></canvas>"
+                             "   <canvas class=\"EosWebViewChild\" id=\"box\"></canvas>"
                              "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.<br>"
                              "  <h2>A HTML text input</h2>"
                              "  <input type=\"text\">"
@@ -71,6 +87,7 @@ main (int argc, char *argv[])
                              "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.<br>"
                              "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.<br>"
                              "<br>"
+                             "<canvas class=\"EosWebViewChild\" id=\"label\"></canvas>"
                              "Lorem ipsum dolor sit amet, consectetur adipiscing elit,<br>"
                              "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.<br>"
                              "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.<br>"

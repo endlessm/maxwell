@@ -32,13 +32,12 @@
 
 G_BEGIN_DECLS
 
-void        _js_run_finish_handler (GObject      *object,
-                                    GAsyncResult *result,
-                                    gpointer      data);
-
 void        _js_run                (WebKitWebView *webview,
                                     const gchar   *format,
                                     ...);
+
+void        _js_run_string         (WebKitWebView *webview,
+                                    GString       *script);
 
 gchar      *_js_get_string         (JSGlobalContextRef context,
                                     JSValueRef         value);

@@ -41,7 +41,7 @@ typedef struct
 typedef struct
 {
   GList      *children;  /* List of EosWebViewChild */
-  GdkPixbuf  *pixbuf;    /* Temporal copy of offscreen window while handling eosdataimage:// */
+  GList      *pixbufs;   /* List of temp pixbufs to handle eosdataimage:// requests */
   gboolean    script_loaded;
 } EosWebViewPrivate;
 
@@ -121,7 +121,7 @@ eos_web_view_init (EosWebView *self)
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (self);
 
   priv->children = NULL;
-  priv->pixbuf   = NULL;
+  priv->pixbufs  = NULL;
 }
 
 static void
@@ -129,7 +129,8 @@ eos_web_view_dispose (GObject *object)
 {
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (object);
 
-  g_clear_object (&priv->pixbuf);
+  g_list_free_full (priv->pixbufs, g_object_unref);
+  priv->pixbufs = NULL;
 
   /* GtkContainer dispose will free children */
   G_OBJECT_CLASS (eos_web_view_parent_class)->dispose (object);
@@ -137,58 +138,97 @@ eos_web_view_dispose (GObject *object)
 
 static void
 on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
-                                  gpointer                data)
+                                  gpointer                userdata)
 {
   const gchar *path = webkit_uri_scheme_request_get_path (request);
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (data);
-  EosWebViewChild *child_data;
-  cairo_surface_t *surface;
+  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (userdata);
+  EosWebViewChild *data;
 
-  if (path && *path == '/' &&
-      (child_data = get_child_data_by_id (priv, &path[1])) &&
-      child_data->offscreen &&
-      (surface = gdk_offscreen_window_get_surface (child_data->offscreen)))
+  if (path && *path == '/' && (data = get_child_data_by_id (priv, &path[1])))
     {
-      gint w = gdk_window_get_width (child_data->offscreen);
-      gint h = gdk_window_get_height (child_data->offscreen);
+      const gchar *uri = webkit_uri_scheme_request_get_uri (request);
+      GdkPixbuf *pixbuf = NULL;
+      gchar *pixbuf_id;
 
-      g_clear_object (&priv->pixbuf);
-      cairo_surface_flush (surface);
-      priv->pixbuf = gdk_pixbuf_get_from_surface (surface, 0, 0, w, h);
-
-      if (gdk_pixbuf_get_colorspace (priv->pixbuf) == GDK_COLORSPACE_RGB &&
-          gdk_pixbuf_get_bits_per_sample (priv->pixbuf) == 8 &&
-          gdk_pixbuf_get_has_alpha (priv->pixbuf))
+      /*
+       * eosimagedata:///id[?pixbuf]
+       *
+       * Where 'id' is the child id and 'pixbuf' is an optional GdkPixbuf
+       * pointer encoded in base64
+       *
+       * GdkPixbuf are created in damage-event handler and pusshed to priv->pixbufs
+       * for us to consume if the uri includes the pixbuf id.
+       * Otherwise if there is no specific image requested we return the whole
+       * offscreen
+       */
+      if ((pixbuf_id = g_strstr_len (uri, -1, "?")))
         {
+          guchar *image_data;
+          gsize len;
+
+          if ((image_data = g_base64_decode (&pixbuf_id[1], &len)) &&
+              len == sizeof (GdkPixbuf *))
+            {
+              pixbuf = *((GdkPixbuf **)image_data);
+              if (!g_list_find (priv->pixbufs, pixbuf))
+                pixbuf = NULL;
+            }
+
+          g_free (image_data);
+        }
+      else
+        {
+          cairo_surface_t *surface;
+
+          /* No pixbuf id, return the whole offscreen */
+          surface = gdk_offscreen_window_get_surface (data->offscreen);
+          pixbuf = gdk_pixbuf_get_from_surface (surface, 0, 0,
+                                                data->alloc.width,
+                                                data->alloc.height);
+
+          priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
+        }
+
+      if (pixbuf &&
+          gdk_pixbuf_get_colorspace (pixbuf) == GDK_COLORSPACE_RGB &&
+          gdk_pixbuf_get_bits_per_sample (pixbuf) == 8 &&
+          gdk_pixbuf_get_has_alpha (pixbuf))
+        {
+          const guint8 *pixels = gdk_pixbuf_read_pixels (pixbuf);
           GInputStream *stream = NULL;
-          gsize stream_length;
+          gsize len;
 
-          stream_length = gdk_pixbuf_get_height (priv->pixbuf) *
-                          gdk_pixbuf_get_rowstride (priv->pixbuf);
+          len = gdk_pixbuf_get_height (pixbuf) *
+                gdk_pixbuf_get_rowstride (pixbuf);
 
-          stream = g_memory_input_stream_new_from_data (gdk_pixbuf_read_pixels (priv->pixbuf),
-                                                        stream_length, NULL);
-          webkit_uri_scheme_request_finish (request,
-                                            stream,
-                                            stream_length,
+          stream = g_memory_input_stream_new_from_data (pixels, len, NULL);
+          webkit_uri_scheme_request_finish (request, stream, len,
                                             "application/octet-stream");
+
+          /* Add a week reference to free the Pixbuf when stream if finalized */
+          g_object_weak_ref (G_OBJECT (stream),
+                             (GWeakNotify) g_object_unref,
+                             pixbuf);
+
+          /* Pixbuf is no longer our responsibility, stream will take care
+           * of freeing it when its finalized
+           */
+          priv->pixbufs = g_list_remove (priv->pixbufs, pixbuf);
+
           g_object_unref (stream);
           return;
+        }
+      else if (pixbuf)
+        {
+          /* Pixbuf is not in RGBA format, ignore it */
+          priv->pixbufs = g_list_remove (priv->pixbufs, pixbuf);
+          g_object_unref (pixbuf);
         }
     }
 
   webkit_uri_scheme_request_finish_error (request,
                                           g_error_new_literal (EOS_WEB_VIEW_ERROR, 0,
                                                                "Could not find imagedata uri"));
-}
-
-static void
-handle_script_message_child_draw_done (WebKitUserContentManager *manager,
-                                       WebKitJavascriptResult   *result,
-                                       EosWebView               *webview)
-{
-  EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (webview);
-  g_clear_object (&priv->pixbuf);
 }
 
 static void
@@ -229,7 +269,7 @@ handle_script_message_update_positions (WebKitUserContentManager *manager,
     }
 }
 
-static void
+static gboolean
 child_allocate (EosWebViewChild *data)
 {
   GtkRequisition natural;
@@ -238,7 +278,7 @@ child_allocate (EosWebViewChild *data)
   gtk_widget_get_preferred_size (data->child, NULL, &natural);
 
   if (natural.width == data->alloc.width && natural.height == data->alloc.height)
-    return;
+    return FALSE;
 
   alloc.x = 0;
   alloc.y = 0;
@@ -253,6 +293,8 @@ child_allocate (EosWebViewChild *data)
 
   if (data->offscreen)
     gdk_window_resize (data->offscreen, natural.width, natural.height);
+
+  return TRUE;
 }
 
 static void
@@ -304,12 +346,7 @@ handle_script_message_children_allocate (WebKitUserContentManager *manager,
         }
 
       /* Initialize all children at once */
-      if (script->len)
-        webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
-                                        script->str, NULL,
-                                        _js_run_finish_handler,
-                                        script->str);
-      g_string_free (script, FALSE);
+      _js_run_string (WEBKIT_WEB_VIEW (webview), script);
     }
   else
     {
@@ -428,9 +465,6 @@ eos_web_view_constructed (GObject *object)
   /* Signal script has been loaded */
   EWV_DEFINE_MSG_HANDLER (content_manager, script_loaded, webview);
 
-  /* Handler to free pixbuf imediately after updating canvas */
-  EWV_DEFINE_MSG_HANDLER (content_manager, child_draw_done, webview);
-
   /* Handle children position changes */
   EWV_DEFINE_MSG_HANDLER (content_manager, update_positions, webview);
 
@@ -548,12 +582,10 @@ pick_offscreen_child (GdkWindow  *offscreen_window,
   for (l = priv->children; l; l = g_list_next (l))
     {
       EosWebViewChild *data = l->data;
+      GtkAllocation *alloc = &data->alloc;
 
-      gint w = gdk_window_get_width (data->offscreen);
-      gint h = gdk_window_get_height (data->offscreen);
-
-      if (widget_x >= data->alloc.x && widget_x <= data->alloc.x+w &&
-          widget_y >= data->alloc.y && widget_y <= data->alloc.y+h)
+      if (widget_x >= alloc->x && widget_x <= alloc->x + alloc->width &&
+          widget_y >= alloc->y && widget_y <= alloc->y + alloc->height)
         return data->offscreen;
     }
 
@@ -657,11 +689,30 @@ eos_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
 
   if (data && data->id && gtk_widget_get_visible (data->child))
     {
+      cairo_surface_t *surface;
+      GdkPixbuf *pixbuf;
+      gchar *img_id;
+
+      surface = gdk_offscreen_window_get_surface (data->offscreen);
+      pixbuf = gdk_pixbuf_get_from_surface (surface,
+                                            event->area.x,
+                                            event->area.y,
+                                            event->area.width,
+                                            event->area.height);
+
+      img_id = g_base64_encode ((const guchar *)&pixbuf, sizeof (GdkPixbuf *));
+      priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
+
       _js_run (WEBKIT_WEB_VIEW (widget),
-               "eos_web_view.child_draw('%s', %d, %d);",
+               "eos_web_view.child_draw('%s', '%s', %d, %d, %d, %d);",
                data->id,
-               data->alloc.width,
-               data->alloc.height);
+               img_id,
+               event->area.x,
+               event->area.y,
+               event->area.width,
+               event->area.height);
+
+      g_free (img_id);
     }
 
   return FALSE;
@@ -671,12 +722,56 @@ static void
 eos_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
 {
   EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
+  GString *script = g_string_new ("");
   GList *l;
 
   for (l = priv->children; l; l = g_list_next (l))
-    child_allocate (l->data);
+    {
+      EosWebViewChild *data = l->data;
+
+      if (child_allocate (data) && data->offscreen)
+        g_string_append_printf (script, "eos_web_view.child_resize ('%s', %d, %d);\n",
+                                data->id, data->alloc.width, data->alloc.height);
+    }
+
+  _js_run_string (WEBKIT_WEB_VIEW (widget), script);
 
   GTK_WIDGET_CLASS (eos_web_view_parent_class)->size_allocate (widget, allocation);
+}
+
+static gboolean
+eos_web_view_draw (GtkWidget *widget, cairo_t *cr)
+{
+  GdkWindow *window = gtk_widget_get_window (widget);
+  if (gtk_cairo_should_draw_window (cr, window))
+    {
+      GTK_WIDGET_CLASS (eos_web_view_parent_class)->draw (widget, cr);
+    }
+  else
+    {
+      EosWebViewPrivate *priv = EOS_WEB_VIEW_PRIVATE (widget);
+      GList *l;
+
+      for (l = priv->children; l; l = g_list_next (l))
+        {
+          EosWebViewChild *data = l->data;
+
+          if (!gtk_cairo_should_draw_window (cr, data->offscreen))
+            continue;
+
+          /* Clear offscreen window instead of rendering webview background */
+          cairo_save (cr);
+          cairo_set_operator (cr, CAIRO_OPERATOR_CLEAR);
+          cairo_paint (cr);
+          cairo_restore (cr);
+
+          gtk_container_propagate_draw (GTK_CONTAINER (widget),
+                                        data->child,
+                                        cr);
+        }
+    }
+
+  return FALSE;
 }
 
 static void
@@ -730,6 +825,7 @@ eos_web_view_class_init (EosWebViewClass *klass)
   widget_class->realize = eos_web_view_realize;
   widget_class->unrealize = eos_web_view_unrealize;
   widget_class->size_allocate = eos_web_view_size_allocate;
+  widget_class->draw = eos_web_view_draw;
   widget_class->damage_event = eos_web_view_damage_event;
 
   widget_class->button_press_event = eos_web_view_button_press_event;

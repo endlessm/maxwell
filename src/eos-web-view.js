@@ -141,24 +141,17 @@ window.eos_web_view = {}
 /* List of children */
 window.eos_web_view.children = {}
 
-/* child_draw()
- *
- * Draw child canvas with eosimagedata:///canvasid image
- *
- * Unfortunatelly WebGL does not support texture_from_pixmap but we might be able
- * to use GL to implement this function if we can get the context from WebKit
- * itself
+/* child_resize()
  */
-window.eos_web_view.child_draw = function (id, width, height) {
+window.eos_web_view.child_resize = function (id, width, height) {
     let child = eos_web_view.children[id];
 
     if (!child)
         return;
 
-    let ctx = child.getContext('2d');
-
     /* Resize canvas keeping the old contents */
     if (child.width !== width || child.height !== height) {
+        let ctx = child.getContext('2d');
         var old_image = ctx.getImageData(0, 0, child.width, child.height);
 
         child.width = width;
@@ -168,10 +161,30 @@ window.eos_web_view.child_draw = function (id, width, height) {
 
         old_image = null;
     }
+}
+
+/* child_draw()
+ *
+ * Draw child canvas with eosimagedata:///canvasid image
+ *
+ * Unfortunatelly WebGL does not support texture_from_pixmap but we might be able
+ * to use GL to implement this function if we can get the context from WebKit
+ * itself
+ */
+window.eos_web_view.child_draw = function (id, image_id, x, y, width, height) {
+    let child = eos_web_view.children[id];
+
+    if (!child)
+        return;
+
+    let ctx = child.getContext('2d');
 
     /* Get image data */
     let xhr = new XMLHttpRequest();
-    xhr.open('GET', 'eosimagedata:///'+id, false);
+    let uri = 'eosimagedata:///' + id;
+    if (image_id)
+        uri += '?' + image_id;
+    xhr.open('GET', uri, false);
     xhr.responseType = 'arraybuffer';
 
     try {
@@ -181,16 +194,11 @@ window.eos_web_view.child_draw = function (id, width, height) {
     }
 
     /* Update child canvas */
-    if (xhr.response &&
-        /* Make sure the response is the right size, this avoids
-         * "InvalidStateError: The object is in an invalid state."
-         * TODO: find out the real cause of the error
-         */
-        xhr.response.byteLength === width * height * 4) {
+    if (xhr.response) {
         let data = new Uint8ClampedArray(xhr.response);
         let image = new ImageData(data, width, height);
 
-        ctx.putImageData(image, 0, 0);
+        ctx.putImageData(image, x, y);
 
         /* Help GC */
         data = null;
@@ -198,9 +206,6 @@ window.eos_web_view.child_draw = function (id, width, height) {
     }
 
     xhr = null;
-
-    /* Hint EknWebView we are done with image data */
-    window.webkit.messageHandlers.child_draw_done.postMessage({});
 }
 
 /* child_set_visible()
@@ -225,7 +230,7 @@ window.eos_web_view.child_init = function (id, width, height, visible) {
 
     child.width = width;
     child.height = height;
-    window.eos_web_view.child_draw (id, width, height);
+    window.eos_web_view.child_draw (id, null, 0, 0, width, height);
 
     if (visible)
         window.eos_web_view.child_set_visible (id, visible);
