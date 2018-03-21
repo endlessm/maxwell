@@ -52,9 +52,10 @@ install_headers(maxwell_headers, subdir: 'maxwell')
 # Internal dependency, for examples
 maxwell_inc = include_directories('.')
 maxwell_dep = declare_dependency(link_with: maxwell_lib,
-                                          include_directories: [ maxwell_inc ],
-                                          dependencies: [ maxwell_deps ])
+                                 include_directories: [ maxwell_inc ],
+                                 dependencies: [ maxwell_deps ])
 
+# PkgConfig file
 pkg = import('pkgconfig')
 
 pkg.generate(
@@ -67,3 +68,21 @@ pkg.generate(
      requires: 'webkit2gtk-4.0',
   install_dir: join_paths(get_option('libdir'), 'pkgconfig')
 )
+
+# Introspection
+if get_option('introspection')
+  gir_extra_args = [
+    '--c-include=maxwell.h',
+  ]
+
+  gnome.generate_gir(maxwell_lib,
+                     sources: maxwell_headers + maxwell_sources,
+                     namespace: 'Maxwell',
+                     nsversion: api_version,
+                     identifier_prefix: 'Maxwell',
+                     symbol_prefix: 'maxwell',
+                     export_packages: 'maxwell-' + api_version,
+                     includes: [ 'WebKit2-4.0' ],
+                     install: true,
+                     extra_args: gir_extra_args)
+endif

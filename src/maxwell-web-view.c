@@ -852,12 +852,35 @@ maxwell_web_view_class_init (MaxwellWebViewClass *klass)
 
 /* Public API */
 
+/**
+ * maxwell_web_view_new:
+ *
+ * Creates a new #MaxwellWebView.
+ *
+ * Returns: (transfer full): the newly created web view
+ *
+ * Since: 1.0
+ */
 GtkWidget *
 maxwell_web_view_new ()
 {
   return (GtkWidget *) g_object_new (MAXWELL_TYPE_WEB_VIEW, NULL);
 }
 
+/**
+ * maxwell_web_view_pack_child:
+ * @webview: a #MaxwellWebView
+ * @child: a #GtkWidget
+ * id: a string identifying child
+ *
+ * Packs @child in @webview and binds it to <canvas class="GtkWidget" id="@id"/>
+ * element
+ *
+ * This is the same as calling gtk_container_add() and setting "canvas-id"
+ * packing property to @id.
+ *
+ * Since: 1.0
+ */
 void
 maxwell_web_view_pack_child (MaxwellWebView  *webview,
                              GtkWidget       *child,
