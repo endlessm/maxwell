@@ -11,6 +11,10 @@ maxwell_headers = [
   'maxwell-web-view.h',
 ]
 
+private_headers = [
+  'js-utils.h',
+]
+
 version_split = meson.project_version().split('.')
 MAJOR_VERSION = version_split[0]
 MINOR_VERSION = version_split[1]
@@ -42,7 +46,7 @@ maxwell_sources += gnome.compile_resources(
 )
 
 maxwell_lib = shared_library('maxwell-' + api_version,
-  maxwell_sources,
+  maxwell_sources + private_headers,
   dependencies: maxwell_deps,
   install: true,
 )
@@ -70,19 +74,17 @@ pkg.generate(
 )
 
 # Introspection
-if get_option('introspection')
-  gir_extra_args = [
-    '--c-include=maxwell.h',
-  ]
+gir_extra_args = [
+  '--c-include=maxwell.h',
+]
 
-  gnome.generate_gir(maxwell_lib,
-                     sources: maxwell_headers + maxwell_sources,
-                     namespace: 'Maxwell',
-                     nsversion: api_version,
-                     identifier_prefix: 'Maxwell',
-                     symbol_prefix: 'maxwell',
-                     export_packages: 'maxwell-' + api_version,
-                     includes: [ 'WebKit2-4.0' ],
-                     install: true,
-                     extra_args: gir_extra_args)
-endif
+gnome.generate_gir(maxwell_lib,
+                   sources: maxwell_headers + maxwell_sources,
+                   namespace: 'Maxwell',
+                   nsversion: api_version,
+                   identifier_prefix: 'Maxwell',
+                   symbol_prefix: 'maxwell',
+                   export_packages: 'maxwell-' + api_version,
+                   includes: [ 'WebKit2-4.0' ],
+                   install: true,
+                   extra_args: gir_extra_args)
