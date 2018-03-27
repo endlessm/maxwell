@@ -55,7 +55,7 @@ enum
 
 static GParamSpec *child_properties[N_CHILD_PROPERTIES];
 
-G_DEFINE_TYPE_WITH_PRIVATE (MaxwellWebView, maxwell_web_view, WEBKIT_TYPE_WEB_VIEW);
+G_DEFINE_TYPE_WITH_PRIVATE (MaxwellWebView, maxwell_web_view, WEBKIT_TYPE_WEB_VIEW)
 
 #define RESOURCES_PATH "/com/endlessm/maxwell"
 #define MAXWELL_WEB_VIEW_PRIVATE(d) ((MaxwellWebViewPrivate *) maxwell_web_view_get_instance_private((MaxwellWebView*)d))
@@ -136,6 +136,7 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
   const gchar *path = webkit_uri_scheme_request_get_path (request);
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (userdata);
   ChildData *data;
+  GError *error;
 
   if (path && *path == '/' && (data = get_child_data_by_id (priv, &path[1])))
     {
@@ -149,7 +150,7 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
        * Where 'id' is the child id and 'pixbuf' is an optional GdkPixbuf
        * pointer encoded in base64
        *
-       * GdkPixbuf are created in damage-event handler and pusshed to priv->pixbufs
+       * GdkPixbuf are created in damage-event handler and pushed to priv->pixbufs
        * for us to consume if the uri includes the pixbuf id.
        * Otherwise if there is no specific image requested we return the whole
        * offscreen
@@ -204,7 +205,7 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
                              pixbuf);
 
           /* Pixbuf is no longer our responsibility, stream will take care
-           * of freeing it when its finalized
+           * of freeing it when it's finalized
            */
           priv->pixbufs = g_list_remove (priv->pixbufs, pixbuf);
 
@@ -219,9 +220,10 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
         }
     }
 
-  webkit_uri_scheme_request_finish_error (request,
-                                          g_error_new_literal (MAXWELL_ERROR, 0,
-                                                               "Could not find imagedata uri"));
+  error = g_error_new_literal (MAXWELL_ERROR, 0,
+                               "Could not find imagedata uri");
+  webkit_uri_scheme_request_finish_error (request, error);
+  g_error_free (error);
 }
 
 static void
@@ -232,33 +234,33 @@ handle_script_message_update_positions (WebKitUserContentManager *manager,
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
   JSValueRef value = webkit_javascript_result_get_value (result);
+  JSObjectRef array;
+  JSValueRef val;
+  gint i = 0;
 
-  if (JSValueIsArray (context, value))
-    {
-      JSObjectRef array = JSValueToObject (context, value, NULL);
-      JSValueRef val;
-      gint i = 0;
-
-      while ((val = JSObjectGetPropertyAtIndex (context, array, i, NULL)) &&
-             JSValueIsObject (context, val))
-        {
-          JSObjectRef obj = JSValueToObject (context, val, NULL);
-          gchar *child_id = _js_object_get_string (context, obj, "id");
-          ChildData *data = get_child_data_by_id (priv, child_id);
-
-          if (data)
-            {
-              data->alloc.x = _js_object_get_number (context, obj, "x");
-              data->alloc.y = _js_object_get_number (context, obj, "y");
-            }
-
-          g_free (child_id);
-          i++;
-        }
-    }
-  else
+  if (!JSValueIsArray (context, value))
     {
       g_warning ("Error running javascript: unexpected return value");
+      return;
+    }
+
+  array = JSValueToObject (context, value, NULL);
+
+  while ((val = JSObjectGetPropertyAtIndex (context, array, i, NULL)) &&
+         JSValueIsObject (context, val))
+    {
+      JSObjectRef obj = JSValueToObject (context, val, NULL);
+      gchar *child_id = _js_object_get_string (context, obj, "id");
+      ChildData *data = get_child_data_by_id (priv, child_id);
+
+      if (data)
+        {
+          data->alloc.x = _js_object_get_number (context, obj, "x");
+          data->alloc.y = _js_object_get_number (context, obj, "y");
+        }
+
+      g_free (child_id);
+      i++;
     }
 }
 
@@ -311,40 +313,42 @@ handle_script_message_children_allocate (WebKitUserContentManager *manager,
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
   JSValueRef value = webkit_javascript_result_get_value (result);
+  JSObjectRef array;
+  GString *script;
+  JSValueRef val;
+  gint i = 0;
 
-  if (JSValueIsArray (context, value))
-    {
-      JSObjectRef array = JSValueToObject (context, value, NULL);
-      GString *script = g_string_new ("");
-      JSValueRef val;
-      gint i = 0;
-
-      while ((val = JSObjectGetPropertyAtIndex (context, array, i, NULL)) &&
-             JSValueIsString (context, val))
-        {
-          gchar *id = _js_get_string (context, val);
-          ChildData *data = get_child_data_by_id (priv, id);
-
-          if (data)
-            {
-              child_allocate (data);
-
-              /* Collect children to initialize */
-              g_string_append_printf (script, "maxwell.child_init ('%s', %d, %d, %s);\n",
-                                      data->id, data->alloc.width, data->alloc.height,
-                                      gtk_widget_get_visible (data->child) ? "true" : "false");
-            }
-          g_free (id);
-          i++;
-        }
-
-      /* Initialize all children at once */
-      _js_run_string (WEBKIT_WEB_VIEW (webview), script);
-    }
-  else
+  if (!JSValueIsArray (context, value))
     {
       g_warning ("Error running javascript: unexpected return value");
+      return;
     }
+
+  array = JSValueToObject (context, value, NULL);
+  script = g_string_new ("");
+
+  while ((val = JSObjectGetPropertyAtIndex (context, array, i, NULL)) &&
+         JSValueIsString (context, val))
+    {
+      gchar *id = _js_get_string (context, val);
+      ChildData *data = get_child_data_by_id (priv, id);
+
+      if (data)
+        {
+          /* TODO: check if we can remove allocating children here */
+          child_allocate (data);
+
+          /* Collect children to initialize */
+          g_string_append_printf (script, "maxwell.child_init ('%s', %d, %d, %s);\n",
+                                  data->id, data->alloc.width, data->alloc.height,
+                                  gtk_widget_get_visible (data->child) ? "true" : "false");
+        }
+      g_free (id);
+      i++;
+    }
+
+  /* Initialize all children at once */
+  _js_run_string (WEBKIT_WEB_VIEW (webview), script);
 }
 
 static void
@@ -436,7 +440,7 @@ maxwell_web_view_constructed (GObject *object)
 
   G_OBJECT_CLASS (maxwell_web_view_parent_class)->constructed (object);
 
-  /* Give XMlHttpRequest a chance to work */
+  /* Give XmlHttpRequest a chance to work */
   g_object_set (webkit_web_view_get_settings (webview),
                 "allow-universal-access-from-file-urls", TRUE,
                 "allow-file-access-from-file-urls", TRUE,
@@ -471,6 +475,9 @@ maxwell_web_view_constructed (GObject *object)
 
   /* Allocate new canvas added to the DOM */
   EWV_DEFINE_MSG_HANDLER (content_manager, children_allocate, webview);
+
+  webkit_user_script_unref (script);
+  g_bytes_unref (script_source);
 }
 
 static void
@@ -650,8 +657,7 @@ maxwell_web_view_realize (GtkWidget *widget)
 
       ensure_offscreen (widget, data);
 
-      if (gtk_widget_get_visible (data->child))
-        child_update_visibility (MAXWELL_WEB_VIEW (widget), l->data);
+      child_update_visibility (MAXWELL_WEB_VIEW (widget), data->child);
     }
 }
 
@@ -669,8 +675,7 @@ maxwell_web_view_unrealize (GtkWidget *widget)
         continue;
 
       gtk_widget_unregister_window (widget, data->offscreen);
-      gdk_window_destroy (data->offscreen);
-      data->offscreen = NULL;
+      g_clear_pointer (&data->offscreen, gdk_window_destroy);
 
       child_update_visibility (MAXWELL_WEB_VIEW (widget), data->child);
     }
@@ -682,11 +687,13 @@ static gboolean
 maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
 {
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
-  ChildData *data = get_child_data_by_offscreen (priv, event->window);
+  ChildData *data;
 
   /* Dont do anything if the support script did not finished loading */
   if (!priv->script_loaded)
     return FALSE;
+
+  data = get_child_data_by_offscreen (priv, event->window);
 
   if (data && data->id && gtk_widget_get_visible (data->child))
     {
@@ -705,7 +712,7 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
       priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
 
       _js_run (WEBKIT_WEB_VIEW (widget),
-               "maxwell.child_draw('%s', '%s', %d, %d, %d, %d);",
+               "maxwell.child_draw ('%s', '%s', %d, %d, %d, %d);",
                data->id,
                img_id,
                event->area.x,
@@ -743,33 +750,27 @@ maxwell_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
 static gboolean
 maxwell_web_view_draw (GtkWidget *widget, cairo_t *cr)
 {
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
   GdkWindow *window = gtk_widget_get_window (widget);
+  GList *l;
+
   if (gtk_cairo_should_draw_window (cr, window))
+    GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->draw (widget, cr);
+
+  for (l = priv->children; l; l = g_list_next (l))
     {
-      GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->draw (widget, cr);
-    }
-  else
-    {
-      MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
-      GList *l;
+      ChildData *data = l->data;
 
-      for (l = priv->children; l; l = g_list_next (l))
-        {
-          ChildData *data = l->data;
+        if (!gtk_cairo_should_draw_window (cr, data->offscreen))
+          continue;
 
-          if (!gtk_cairo_should_draw_window (cr, data->offscreen))
-            continue;
+        /* Clear offscreen window instead of rendering webview background */
+        cairo_save (cr);
+        cairo_set_operator (cr, CAIRO_OPERATOR_CLEAR);
+        cairo_paint (cr);
+        cairo_restore (cr);
 
-          /* Clear offscreen window instead of rendering webview background */
-          cairo_save (cr);
-          cairo_set_operator (cr, CAIRO_OPERATOR_CLEAR);
-          cairo_paint (cr);
-          cairo_restore (cr);
-
-          gtk_container_propagate_draw (GTK_CONTAINER (widget),
-                                        data->child,
-                                        cr);
-        }
+        gtk_container_propagate_draw (GTK_CONTAINER (widget), data->child, cr);
     }
 
   return FALSE;
@@ -859,19 +860,18 @@ maxwell_web_view_class_init (MaxwellWebViewClass *klass)
  *
  * Returns: (transfer full): the newly created web view
  *
- * Since: 1.0
  */
 GtkWidget *
-maxwell_web_view_new ()
+maxwell_web_view_new (void)
 {
-  return (GtkWidget *) g_object_new (MAXWELL_TYPE_WEB_VIEW, NULL);
+  return g_object_new (MAXWELL_TYPE_WEB_VIEW, NULL);
 }
 
 /**
  * maxwell_web_view_pack_child:
  * @webview: a #MaxwellWebView
  * @child: a #GtkWidget
- * id: a string identifying child
+ * @id: a string identifying child
  *
  * Packs @child in @webview and binds it to <canvas class="GtkWidget" id="@id"/>
  * element
@@ -879,7 +879,6 @@ maxwell_web_view_new ()
  * This is the same as calling gtk_container_add() and setting "canvas-id"
  * packing property to @id.
  *
- * Since: 1.0
  */
 void
 maxwell_web_view_pack_child (MaxwellWebView  *webview,
