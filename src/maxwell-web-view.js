@@ -136,10 +136,10 @@ observer.observe(document, {
 /* Semi Public API */
 
 /* Main entry point */
-window.maxwell = {}
+window.maxwell = {};
 
 /* List of children */
-window.maxwell.children = {}
+window.maxwell.children = {};
 
 /* child_resize()
  */
@@ -230,10 +230,10 @@ window.maxwell.child_init = function (id, width, height, visible) {
 
     child.width = width;
     child.height = height;
-    window.maxwell.child_draw (id, null, 0, 0, width, height);
+    window.maxwell.child_draw(id, null, 0, 0, width, height);
 
     if (visible)
-        window.maxwell.child_set_visible (id, visible);
+        window.maxwell.child_set_visible(id, visible);
 }
 
 /* Signal MaxwellWebView the script has finished loading */
