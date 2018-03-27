@@ -1,4 +1,4 @@
-# Maxwell - Embedding Gtk widgets in WebKit2
+# ![Maxwell][logo]Embedding Gtk widgets in WebKit2
 A WebKitWebView derived class that lets you embed GtkWidget in it.
 
 ### What is Maxwell?
@@ -16,7 +16,7 @@ X Agent 96 => Agent 86 => Maxwell Smart => **Maxwell**
 ### How does it work?
 The introduction of the split process model in WebKit2 made embedding widgets
 in WebView rather difficult since part of WebKit operates in one process and
-the rest like WebCore and JS engine in another (UI/Web process)
+the rest like WebCore and JS engine in another (UI/Web process).
 
 Maxwell takes a similar approach to Broadway, all it needs is a way to render
 widgets in the DOM tree and get events from them.
@@ -51,7 +51,7 @@ the source image data to implement the custom URI scheme handler.
 For events all we have to do is properly implement GdkWindow::pick-embedded-child
 and let Gtk know which child widget should get the event.
 In order to do so we need to keep track of the elements position relative to
-WebView's viewport which can be calculated with getBoundingClientRect()
+WebView's viewport which can be calculated with getBoundingClientRect().
 
 ## API
 
@@ -102,6 +102,7 @@ maxwell_web_view_pack_child (MAXWELL_WEB_VIEW (webview), entry, "entry");
 Maxwell is released under the terms of the GNU Lesser General Public License,
 either version 2.1 or, at your option, any later version.
 
+[logo]: https://github.com/endlessm/maxwell/blob/master/logo.svg
 [gdk-broadway]: https://developer.gnome.org/gtk3/stable/gtk-broadway.html
 [x11-broadway]: http://sunsite.uakom.sk/sunworldonline/swol-02-1997/swol-02-connectivity.html
 [meson]: http://mesonbuild.com/
