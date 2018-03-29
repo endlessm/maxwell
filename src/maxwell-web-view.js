@@ -71,7 +71,6 @@ function update_positions () {
 
     /* Update all positions in MaxwellWebView at once to reduce messages */
     window.webkit.messageHandlers.maxwell_update_positions.postMessage(positions);
-    position_timeout_id = null;
 }
 
 /* Limit to 10Hz */
@@ -133,6 +132,31 @@ observer.observe(document, {
     attributes: true
 });
 
+/* Get image data */
+function get_image (id, image_id, width, height) {
+    let xhr = new XMLHttpRequest();
+    let uri = 'maxwell:///' + id;
+
+    if (image_id)
+        uri += '?' + image_id;
+
+    xhr.open('GET', uri, false);
+    xhr.responseType = 'arraybuffer';
+
+    try {
+        xhr.send();
+    } catch (error) {
+        return null;
+    }
+
+    if (xhr.response) {
+        let data = new Uint8ClampedArray(xhr.response);
+        return new ImageData(data, width, height);
+    }
+
+    return null;
+}
+
 /* Semi Public API */
 
 /* Main entry point */
@@ -146,21 +170,19 @@ window.maxwell.children = {};
 window.maxwell.child_resize = function (id, width, height) {
     let child = maxwell.children[id];
 
-    if (!child)
+    if (!child || (child.width === width && child.height === height))
         return;
 
-    /* Resize canvas keeping the old contents */
-    if (child.width !== width || child.height !== height) {
-        let ctx = child.getContext('2d');
-        var old_image = ctx.getImageData(0, 0, child.width, child.height);
+    /* Get image data first */
+    let image = get_image(id, null, width, height);
 
-        child.width = width;
-        child.height = height;
+    /* Resize canvas */
+    child.width = width;
+    child.height = height;
 
-        ctx.putImageData(old_image, 0, 0);
-
-        old_image = null;
-    }
+    /* Update contents ASAP */
+    if (image)
+        child.getContext('2d').putImageData(image, 0, 0);
 }
 
 /* child_draw()
@@ -177,35 +199,12 @@ window.maxwell.child_draw = function (id, image_id, x, y, width, height) {
     if (!child)
         return;
 
-    let ctx = child.getContext('2d');
-
     /* Get image data */
-    let xhr = new XMLHttpRequest();
-    let uri = 'maxwell:///' + id;
-    if (image_id)
-        uri += '?' + image_id;
-    xhr.open('GET', uri, false);
-    xhr.responseType = 'arraybuffer';
+    let image = get_image(id, image_id, width, height);
 
-    try {
-        xhr.send();
-    } catch (error) {
-        return;
-    }
-
-    /* Update child canvas */
-    if (xhr.response) {
-        let data = new Uint8ClampedArray(xhr.response);
-        let image = new ImageData(data, width, height);
-
-        ctx.putImageData(image, x, y);
-
-        /* Help GC */
-        data = null;
-        image = null;
-    }
-
-    xhr = null;
+    /* Update contents */
+    if (image)
+        child.getContext('2d').putImageData(image, x, y);
 }
 
 /* child_set_visible()
@@ -228,9 +227,7 @@ window.maxwell.child_init = function (id, width, height, visible) {
     if (!child)
         return;
 
-    child.width = width;
-    child.height = height;
-    window.maxwell.child_draw(id, null, 0, 0, width, height);
+    window.maxwell.child_resize(id, width, height);
 
     if (visible)
         window.maxwell.child_set_visible(id, visible);
