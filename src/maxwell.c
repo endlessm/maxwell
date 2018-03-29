@@ -1,4 +1,5 @@
 #include "maxwell.h"
+#include "js-utils.h"
 
 GQuark
 maxwell_error_quark (void)

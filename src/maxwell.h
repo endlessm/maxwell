@@ -32,6 +32,20 @@ G_BEGIN_DECLS
 # include "maxwell-version.h"
 #undef MAXWELL_INSIDE
 
+/**
+ * MaxwellError:
+ * @MAXWELL_ERROR_DEFAULT: default error
+ * @MAXWELL_ERROR_JS: Error executing JS code
+ * @MAXWELL_ERROR_URI: Error handling maxwell:// uri
+ *
+ * Maxwell error codes
+ */
+typedef enum {
+  MAXWELL_ERROR_DEFAULT,
+  MAXWELL_ERROR_JAVASCRIPT,
+  MAXWELL_ERROR_URI
+} MaxwellError;
+
 #define MAXWELL_ERROR (maxwell_error_quark ())
 
 GQuark maxwell_error_quark (void);

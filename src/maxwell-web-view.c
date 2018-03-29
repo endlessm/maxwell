@@ -130,13 +130,13 @@ maxwell_web_view_dispose (GObject *object)
 }
 
 static void
-on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
-                                  gpointer                userdata)
+on_maxwell_uri_scheme_request (WebKitURISchemeRequest *request,
+                               gpointer                userdata)
 {
   const gchar *path = webkit_uri_scheme_request_get_path (request);
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (userdata);
+  GError *error = NULL;
   ChildData *data;
-  GError *error;
 
   if (path && *path == '/' && (data = get_child_data_by_id (priv, &path[1])))
     {
@@ -217,11 +217,18 @@ on_image_data_uri_scheme_request (WebKitURISchemeRequest *request,
           /* Pixbuf is not in RGBA format, ignore it */
           priv->pixbufs = g_list_remove (priv->pixbufs, pixbuf);
           g_object_unref (pixbuf);
+
+          error = g_error_new (MAXWELL_ERROR, MAXWELL_ERROR_URI,
+                               "Wrong image data format for %s",
+                               uri);
         }
     }
 
-  error = g_error_new_literal (MAXWELL_ERROR, 0,
-                               "Could not find imagedata uri");
+  if (!error)
+    error = g_error_new (MAXWELL_ERROR, MAXWELL_ERROR_URI,
+                         "Could not find image data for %s",
+                         webkit_uri_scheme_request_get_uri (request));
+
   webkit_uri_scheme_request_finish_error (request, error);
   g_error_free (error);
 }
@@ -453,7 +460,7 @@ maxwell_web_view_constructed (GObject *object)
   webkit_security_manager_register_uri_scheme_as_cors_enabled (security_manager,
                                                                "maxwell");
   webkit_web_context_register_uri_scheme (context, "maxwell",
-                                          on_image_data_uri_scheme_request,
+                                          on_maxwell_uri_scheme_request,
                                           object, NULL);
 
   /* Add script */
