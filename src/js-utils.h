@@ -31,13 +31,17 @@
 #include <JavaScriptCore/JSStringRef.h>
 
 G_BEGIN_DECLS
-
-void        _js_run                (WebKitWebView *webview,
-                                    const gchar   *format,
-                                    ...);
+#define js_run_string(w,s) _js_run_string (WEBKIT_WEB_VIEW (w), __func__, s)
+#define js_run_printf(w,f,...) _js_run_printf (WEBKIT_WEB_VIEW (w), __func__, f, __VA_ARGS__)
 
 void        _js_run_string         (WebKitWebView *webview,
+                                    const gchar   *function,
                                     GString       *script);
+
+void        _js_run_printf         (WebKitWebView *webview,
+                                    const gchar   *function,
+                                    const gchar   *format,
+                                    ...);
 
 gchar      *_js_get_string         (JSGlobalContextRef context,
                                     JSValueRef         value);

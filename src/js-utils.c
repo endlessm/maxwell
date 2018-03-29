@@ -28,46 +28,46 @@ static void
 _js_run_finish_handler (GObject *object, GAsyncResult *result, gpointer data)
 {
   WebKitJavascriptResult *js_result;
-  GString *script = data;
+  gchar *function = data;
   GError *error = NULL;
 
   js_result = webkit_web_view_run_javascript_finish (WEBKIT_WEB_VIEW (object),
                                                      result, &error);
   if (!js_result)
     {
-      g_warning ("Error running javascript: %s\n%s", script->str, error->message);
+      g_warning ("JS Error in %s(): %s", function, error->message);
       g_error_free (error);
     }
-
-  g_string_free (script, TRUE);
 }
 
 void
-_js_run (WebKitWebView *webview, const gchar *format, ...)
+_js_run_printf (WebKitWebView *webview,
+                const gchar   *function,
+                const gchar   *format,
+                ...)
 {
-  GString *script = g_string_new ("");
+  gchar *script;
   va_list args;
 
   va_start (args, format);
-  g_string_append_vprintf (script, format, args);
+  script = g_strdup_vprintf (format, args);
   va_end (args);
 
   webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
-                                  script->str, NULL,
+                                  script, NULL,
                                   _js_run_finish_handler,
-                                  script);
+                                  (gpointer)function);
+  g_free (script);
 }
 
 void
-_js_run_string (WebKitWebView *webview, GString *script)
+_js_run_string (WebKitWebView *webview, const gchar *function, GString *script)
 {
-  if (script->len)
+  if (script && script->len)
     webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
                                     script->str, NULL,
                                     _js_run_finish_handler,
-                                    script);
-  else
-    g_string_free (script, TRUE);
+                                    (gpointer)function);
 }
 
 gchar *

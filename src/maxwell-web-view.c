@@ -306,10 +306,9 @@ child_update_visibility (MaxwellWebView *webview, GtkWidget *child)
   ChildData *data = get_child_data_by_child (priv, child);
 
   if (priv->script_loaded && data && data->id)
-    _js_run (WEBKIT_WEB_VIEW (webview),
-             "maxwell.child_set_visible ('%s', %s);",
-             data->id,
-             gtk_widget_get_visible (child) ? "true" : "false");
+    js_run_printf (webview, "maxwell.child_set_visible ('%s', %s);",
+                   data->id,
+                   gtk_widget_get_visible (child) ? "true" : "false");
 }
 
 static void
@@ -355,7 +354,8 @@ handle_script_message_children_allocate (WebKitUserContentManager *manager,
     }
 
   /* Initialize all children at once */
-  _js_run_string (WEBKIT_WEB_VIEW (webview), script);
+  js_run_string (webview, script);
+  g_string_free (script, TRUE);
 }
 
 static void
@@ -718,15 +718,13 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
       img_id = g_base64_encode ((const guchar *)&pixbuf, sizeof (GdkPixbuf *));
       priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
 
-      _js_run (WEBKIT_WEB_VIEW (widget),
-               "maxwell.child_draw ('%s', '%s', %d, %d, %d, %d);",
-               data->id,
-               img_id,
-               event->area.x,
-               event->area.y,
-               event->area.width,
-               event->area.height);
-
+      js_run_printf (widget, "maxwell.child_draw ('%s', '%s', %d, %d, %d, %d);",
+                     data->id,
+                     img_id,
+                     event->area.x,
+                     event->area.y,
+                     event->area.width,
+                     event->area.height);
       g_free (img_id);
     }
 
@@ -749,7 +747,8 @@ maxwell_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
                                 data->id, data->alloc.width, data->alloc.height);
     }
 
-  _js_run_string (WEBKIT_WEB_VIEW (widget), script);
+  js_run_string (widget, script);
+  g_string_free (script, TRUE);
 
   GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->size_allocate (widget, allocation);
 }
