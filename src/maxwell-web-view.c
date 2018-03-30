@@ -309,9 +309,9 @@ child_update_visibility (MaxwellWebView *webview, GtkWidget *child)
 }
 
 static void
-handle_script_message_children_allocate (WebKitUserContentManager *manager,
-                                         WebKitJavascriptResult   *result,
-                                         MaxwellWebView           *webview)
+handle_script_message_children_init (WebKitUserContentManager *manager,
+                                     WebKitJavascriptResult   *result,
+                                     MaxwellWebView           *webview)
 {
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
@@ -336,15 +336,14 @@ handle_script_message_children_allocate (WebKitUserContentManager *manager,
       gchar *id = _js_get_string (context, val);
       ChildData *data = get_child_data_by_id (priv, id);
 
-      if (data)
+      if (data && data->offscreen && data->alloc.width && data->alloc.height)
         {
-          /* TODO: check if we can remove allocating children here */
-          child_allocate (data);
-
           /* Collect children to initialize */
-          g_string_append_printf (script, "maxwell.child_init ('%s', %d, %d, %s);\n",
-                                  data->id, data->alloc.width, data->alloc.height,
-                                  gtk_widget_get_visible (data->child) ? "true" : "false");
+          g_string_append_printf (script,
+                                  "maxwell.child_resize ('%s', %d, %d);\n"
+                                  "maxwell.child_set_visible ('%s', %s);\n",
+                                  id, data->alloc.width, data->alloc.height,
+                                  id, gtk_widget_get_visible (data->child) ? "true" : "false");
         }
       g_free (id);
       i++;
@@ -478,7 +477,7 @@ maxwell_web_view_constructed (GObject *object)
   EWV_DEFINE_MSG_HANDLER (content_manager, update_positions, webview);
 
   /* Allocate new canvas added to the DOM */
-  EWV_DEFINE_MSG_HANDLER (content_manager, children_allocate, webview);
+  EWV_DEFINE_MSG_HANDLER (content_manager, children_init, webview);
 
   webkit_user_script_unref (script);
   g_bytes_unref (script_source);

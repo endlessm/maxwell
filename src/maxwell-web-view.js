@@ -113,10 +113,7 @@ function document_mutation_handler (mutations) {
         }
     }
 
-    /* Allocate GtkWidget, canvas size will change the first time
-     * child_draw() is called and we actually have something to show
-     */
-    window.webkit.messageHandlers.maxwell_children_allocate.postMessage(children);
+    window.webkit.messageHandlers.maxwell_children_init.postMessage(children);
 
     /* Extra paranoid, update positions if anything changes in the DOM tree!
      * ideally it would be nice to directly observe BoundingClientRect changes.
@@ -216,16 +213,6 @@ window.maxwell.child_set_visible = function (id, visible) {
 
     if (child)
         child.style.display = (visible) ? child.maxwell_display_value : 'none';
-}
-
-/* child_init()
- *
- */
-window.maxwell.child_init = function (id, width, height, visible) {
-    window.maxwell.child_resize(id, width, height);
-
-    if (visible)
-        window.maxwell.child_set_visible(id, visible);
 }
 
 /* Signal MaxwellWebView the script has finished loading */
