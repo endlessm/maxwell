@@ -133,7 +133,9 @@ on_maxwell_uri_scheme_request (WebKitURISchemeRequest *request,
   GError *error = NULL;
   ChildData *data;
 
-  if (path && *path == '/' && (data = get_child_data_by_id (priv, &path[1])))
+  if (path && *path == '/' &&
+      (data = get_child_data_by_id (priv, &path[1])) &&
+      data->offscreen)
     {
       const gchar *uri = webkit_uri_scheme_request_get_uri (request);
       GdkPixbuf *pixbuf = NULL;
@@ -608,7 +610,7 @@ ensure_offscreen (GtkWidget *webview, ChildData *data)
   GdkScreen *screen = gtk_widget_get_screen (webview);
   GdkWindowAttr attributes;
 
-  if (data->id == NULL)
+  if (data->id == NULL || data->offscreen)
     return;
 
   attributes.x = 0;
@@ -762,7 +764,8 @@ maxwell_web_view_draw (GtkWidget *widget, cairo_t *cr)
     {
       ChildData *data = l->data;
 
-        if (!gtk_cairo_should_draw_window (cr, data->offscreen))
+        if (!data->offscreen ||
+            !gtk_cairo_should_draw_window (cr, data->offscreen))
           continue;
 
         /* Clear offscreen window instead of rendering webview background */
