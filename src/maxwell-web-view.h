@@ -32,9 +32,7 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (MaxwellWebView, maxwell_web_view, MAXWELL, WEB_VIEW, WebKitWebView)
 
 GtkWidget     *maxwell_web_view_new (void);
-void           maxwell_web_view_pack_child (MaxwellWebView  *webview,
-                                            GtkWidget       *child,
-                                            const gchar     *id);
+
 G_END_DECLS
 
 #endif /* MAXWELL_WEB_VIEW_H */
