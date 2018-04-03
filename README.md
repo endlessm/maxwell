@@ -55,8 +55,8 @@ WebView's viewport which can be calculated with getBoundingClientRect().
 
 ## API
 
-The API is pretty straightforward, first of all you have to add your widget using
-GtkContainer API
+The API is pretty straightforward, all you have to do is name the child widget
+and add it using regular GtkContainer API.
 ```c
 /* Create a Maxwell Web View */
 webview = maxwell_web_view_new ();
@@ -64,39 +64,29 @@ webview = maxwell_web_view_new ();
 /* Create a widget to embed */
 entry = gtk_entry_new ();
 
+/* Set a unique name on the widget */
+gtk_widget_set_name (entry, "myentry");
+
 /* Add widget to web view container */
 gtk_container_add (GTK_CONTAINER (webview), entry);
 ```
-
-Then you need to make sure there is a CANVAS element in your DOM tree with a
-"GtkWidget" class and a unique ID
+In order for MaxwellWebView to know where to place a child in the DOM tree
+you need to add a CANVAS element with a "GtkWidget" class and the unique ID
+you used as the widget's name.
 ```html
 <canvas class="GtkWidget" id="myentry"></canvas>
 ```
 
-And finally you need to bind a child with an ID, this is done with "canvas-id"
-packing property
-```c
-gtk_container_child_set (GTK_CONTAINER (webview), entry,
-                         "canvas-id", "myentry",
-                         NULL);
-```
-
-There is also convenience API that adds and binds a child in one step
-```c
-maxwell_web_view_pack_child (MAXWELL_WEB_VIEW (webview), entry, "entry");
-```
-
 ## Building
  * Install [meson] and [ninja]
-   `$ sudo apt-get install meson`
+ * `$ sudo apt-get install meson`
  * Create a build directory:
-   `$ mkdir _build && cd _build`
+ * `$ mkdir _build && cd _build`
  * Run meson:
-   `$ meson`
+ * `$ meson`
  * Run ninja:
-   `$ ninja`
-   `$ sudo ninja install`
+ * `$ ninja`
+ * `$ sudo ninja install`
 
 ## Licensing
 Maxwell is released under the terms of the GNU Lesser General Public License,
