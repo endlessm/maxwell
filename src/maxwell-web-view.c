@@ -644,6 +644,7 @@ static void
 maxwell_web_view_realize (GtkWidget *widget)
 {
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
+  GString *script = g_string_new ("");
   GList *l;
 
   GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->realize (widget);
@@ -660,14 +661,24 @@ maxwell_web_view_realize (GtkWidget *widget)
 
       ensure_offscreen (widget, data);
 
-      child_update_visibility (MAXWELL_WEB_VIEW (widget), data->child);
+      if (priv->script_loaded)
+        g_string_append_printf (script, "maxwell.child_set_visible ('%s', %s);\n",
+                                data->id,
+                                gtk_widget_get_visible (data->child) ?
+                                  "true" : "false");
     }
+
+  if (priv->script_loaded)
+    js_run_string (widget, script);
+
+  g_string_free (script, TRUE);
 }
 
 static void
 maxwell_web_view_unrealize (GtkWidget *widget)
 {
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
+  GString *script = g_string_new ("");
   GList *l;
 
   for (l = priv->children; l; l = g_list_next (l))
@@ -680,8 +691,17 @@ maxwell_web_view_unrealize (GtkWidget *widget)
       gtk_widget_unregister_window (widget, data->offscreen);
       g_clear_pointer (&data->offscreen, gdk_window_destroy);
 
-      child_update_visibility (MAXWELL_WEB_VIEW (widget), data->child);
+      if (priv->script_loaded)
+        g_string_append_printf (script, "maxwell.child_set_visible ('%s', %s);\n",
+                                data->id,
+                                gtk_widget_get_visible (data->child) ?
+                                  "true" : "false");
     }
+
+  if (priv->script_loaded)
+    js_run_string (widget, script);
+
+  g_string_free (script, TRUE);
 
   GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->unrealize (widget);
 }
@@ -734,19 +754,21 @@ maxwell_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
   GString *script = g_string_new ("");
   GList *l;
 
+  GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->size_allocate (widget, allocation);
+
   for (l = priv->children; l; l = g_list_next (l))
     {
       ChildData *data = l->data;
 
-      if (child_allocate (data) && data->offscreen)
+      if (child_allocate (data) && priv->script_loaded && data->offscreen)
         g_string_append_printf (script, "maxwell.child_resize ('%s', %d, %d);\n",
                                 data->id, data->alloc.width, data->alloc.height);
     }
 
-  js_run_string (widget, script);
-  g_string_free (script, TRUE);
+  if (priv->script_loaded)
+    js_run_string (widget, script);
 
-  GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->size_allocate (widget, allocation);
+  g_string_free (script, TRUE);
 }
 
 static gboolean
