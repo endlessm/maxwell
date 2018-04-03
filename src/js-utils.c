@@ -38,6 +38,9 @@ _js_run_finish_handler (GObject *object, GAsyncResult *result, gpointer data)
       g_warning ("JS Error in %s(): %s", function, error->message);
       g_error_free (error);
     }
+
+  webkit_javascript_result_unref (js_result);
+  g_free (function);
 }
 
 void
@@ -56,7 +59,7 @@ _js_run_printf (WebKitWebView *webview,
   webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
                                   script, NULL,
                                   _js_run_finish_handler,
-                                  (gpointer)function);
+                                  g_strdup (function));
   g_free (script);
 }
 
@@ -67,7 +70,7 @@ _js_run_string (WebKitWebView *webview, const gchar *function, GString *script)
     webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
                                     script->str, NULL,
                                     _js_run_finish_handler,
-                                    (gpointer)function);
+                                    g_strdup (function));
 }
 
 gchar *

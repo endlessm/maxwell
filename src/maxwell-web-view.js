@@ -222,11 +222,6 @@ window.maxwell.child_set_visible = function (id, visible) {
  *
  */
 window.maxwell.child_init = function (id, width, height, visible) {
-    let child = maxwell.children[id];
-
-    if (!child)
-        return;
-
     window.maxwell.child_resize(id, width, height);
 
     if (visible)

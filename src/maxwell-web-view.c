@@ -80,8 +80,7 @@ maxwell_web_view_child_free (ChildData *data)
     gtk_widget_unregister_window (gtk_widget_get_parent (data->child),
                                   data->offscreen);
 
-  if (data->offscreen)
-    gdk_window_destroy (data->offscreen);
+  g_clear_pointer (&data->offscreen, gdk_window_destroy);
 
   g_clear_object (&data->child);
 
@@ -111,10 +110,6 @@ MWV_DEFINE_CHILD_GETTER (offscreen, GdkWindow *, data->offscreen == offscreen)
 static void
 maxwell_web_view_init (MaxwellWebView *self)
 {
-  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (self);
-
-  priv->children = NULL;
-  priv->pixbufs  = NULL;
 }
 
 static void
@@ -696,7 +691,7 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
   ChildData *data;
 
-  /* Dont do anything if the support script did not finished loading */
+  /* Don't do anything if the support script did not finished loading */
   if (!priv->script_loaded)
     return FALSE;
 
