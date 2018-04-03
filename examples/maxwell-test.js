@@ -55,11 +55,11 @@ Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu 
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 </html>`, 'file://');
 
-let button = new Gtk.Button({label: 'A Gtk Button'});
-let entry = new Gtk.Entry();
+let button = new Gtk.Button({ name: "button", label: 'A Gtk Button' });
+let entry = new Gtk.Entry({ name: "entry" });
 
-webview.pack_child (button, 'button');
-webview.pack_child (entry, 'entry');
+webview.add (button);
+webview.add (entry);
 
 window.show_all();
 

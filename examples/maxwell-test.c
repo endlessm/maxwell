@@ -49,8 +49,8 @@ main (int argc, char *argv[])
   webview = maxwell_web_view_new ();
 
   box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 4);
-
-  entry = gtk_entry_new ();
+  gtk_widget_set_name (box, "box");
+  gtk_container_add (GTK_CONTAINER (webview), box);
 
   button = gtk_button_new_with_label ("A GtkButton");
   g_signal_connect (button, "clicked", G_CALLBACK (on_button_clicked), NULL);
@@ -63,11 +63,13 @@ main (int argc, char *argv[])
   g_signal_connect (button, "clicked", G_CALLBACK (on_button_clicked), NULL);
   gtk_container_add (GTK_CONTAINER (box), button);
 
-  label = gtk_label_new ("another GtkLabel");
+  entry = gtk_entry_new ();
+  gtk_widget_set_name (entry, "entry");
+  gtk_container_add (GTK_CONTAINER (webview), entry);
 
-  maxwell_web_view_pack_child (MAXWELL_WEB_VIEW (webview), label, "label");
-  maxwell_web_view_pack_child (MAXWELL_WEB_VIEW (webview), box, "box");
-  maxwell_web_view_pack_child (MAXWELL_WEB_VIEW (webview), entry, "entry");
+  label = gtk_label_new ("another GtkLabel");
+  gtk_widget_set_name (label, "label");
+  gtk_container_add (GTK_CONTAINER (webview), label);
 
   gtk_container_add (GTK_CONTAINER (window), webview);
   gtk_widget_show_all (window);
