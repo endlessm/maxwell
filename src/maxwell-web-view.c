@@ -123,10 +123,25 @@ static void
 on_maxwell_uri_scheme_request (WebKitURISchemeRequest *request,
                                gpointer                userdata)
 {
-  const gchar *path = webkit_uri_scheme_request_get_path (request);
-  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (userdata);
+  WebKitWebView *webview = webkit_uri_scheme_request_get_web_view (request);
+  MaxwellWebViewPrivate *priv;
+  const gchar *path;
   GError *error = NULL;
   ChildData *data;
+
+  /* Context can be shared with others WebView */
+  if (!MAXWELL_IS_WEB_VIEW (webview))
+    {
+      error = g_error_new (WEBKIT_NETWORK_ERROR,
+                           WEBKIT_NETWORK_ERROR_UNKNOWN_PROTOCOL,
+                           "maxwell:// Unkown protocol");
+      webkit_uri_scheme_request_finish_error (request, error);
+      g_error_free (error);
+      return;
+    }
+
+  priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
+  path = webkit_uri_scheme_request_get_path (request);
 
   if (path && *path == '/' &&
       (data = get_child_data_by_id (priv, &path[1])) &&
@@ -379,7 +394,7 @@ maxwell_web_view_constructed (GObject *object)
                                                                "maxwell");
   webkit_web_context_register_uri_scheme (context, "maxwell",
                                           on_maxwell_uri_scheme_request,
-                                          object, NULL);
+                                          NULL, NULL);
 
   /* Add script */
   content_manager = webkit_web_view_get_user_content_manager (webview);
