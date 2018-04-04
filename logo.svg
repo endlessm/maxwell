@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   height="40"
+   width="260"
+   viewBox="0 0 260 40"
+   version="1.1"
+   id="maxwell">
+  <metadata
+     id="metadata10">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <defs
+     id="defs8">
+    <linearGradient
+       id="linearGradient6489"
+       osb:paint="solid">
+      <stop
+         style="stop-color:#d5ffe6;stop-opacity:1;"
+         offset="0"
+         id="stop6487" />
+    </linearGradient>
+    <filter
+       style="color-interpolation-filters:sRGB"
+       id="filter7402">
+      <feFlood
+         flood-opacity="0.847059"
+         flood-color="rgb(255,255,255)"
+         result="flood"
+         id="feFlood7392" />
+      <feComposite
+         in="flood"
+         in2="SourceGraphic"
+         operator="in"
+         result="composite1"
+         id="feComposite7394" />
+      <feGaussianBlur
+         in="composite1"
+         stdDeviation="1"
+         result="blur"
+         id="feGaussianBlur7396" />
+      <feOffset
+         dx="1"
+         dy="1"
+         result="offset"
+         id="feOffset7398" />
+      <feComposite
+         in="SourceGraphic"
+         in2="offset"
+         operator="over"
+         result="composite2"
+         id="feComposite7400" />
+    </filter>
+    <filter
+       style="color-interpolation-filters:sRGB"
+       id="filter842">
+      <feFlood
+         flood-opacity="0.847059"
+         flood-color="rgb(0,0,0)"
+         result="flood"
+         id="feFlood832" />
+      <feComposite
+         in="flood"
+         in2="SourceGraphic"
+         operator="in"
+         result="composite1"
+         id="feComposite834" />
+      <feGaussianBlur
+         in="composite1"
+         stdDeviation="2"
+         result="blur"
+         id="feGaussianBlur836" />
+      <feOffset
+         dx="1"
+         dy="1"
+         result="offset"
+         id="feOffset838" />
+      <feComposite
+         in="SourceGraphic"
+         in2="offset"
+         operator="over"
+         result="composite2"
+         id="feComposite840" />
+    </filter>
+    <filter
+       style="color-interpolation-filters:sRGB"
+       id="filter854">
+      <feFlood
+         flood-opacity="0.847059"
+         flood-color="rgb(0,0,0)"
+         result="flood"
+         id="feFlood844" />
+      <feComposite
+         in="flood"
+         in2="SourceGraphic"
+         operator="in"
+         result="composite1"
+         id="feComposite846" />
+      <feGaussianBlur
+         in="composite1"
+         stdDeviation="1"
+         result="blur"
+         id="feGaussianBlur848" />
+      <feOffset
+         dx="1"
+         dy="1"
+         result="offset"
+         id="feOffset850" />
+      <feComposite
+         in="SourceGraphic"
+         in2="offset"
+         operator="over"
+         result="composite2"
+         id="feComposite852" />
+    </filter>
+  </defs>
+  <g
+     transform="translate(2.6292669,-1.2803978)"
+     id="g881">
+    <text
+       id="text4526-0-2-0-9"
+       y="37.461327"
+       x="11.628052"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:17.75749969px;line-height:125%;font-family:Sans;-inkscape-font-specification:'Sans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.62468523;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;filter:url(#filter854)"
+       xml:space="preserve"
+       transform="matrix(1.280645,0,0,1.280645,-11.28941,-10)"><tspan
+         id="tspan7128-6"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:33.70013428px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.62468523;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         y="37.461327"
+         x="11.628052"><tspan
+   id="tspan4593-6-3-7"
+   style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:36.7637825px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.62468523;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">M</tspan>A<tspan
+   id="tspan4595-4-7-0"
+   style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:36.7637825px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.62468523;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">X</tspan>W<tspan
+   id="tspan4597-1-7-0"
+   style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:36.7637825px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.62468523;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">E</tspan>L<tspan
+   id="tspan4599-2-2-8"
+   style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:36.7637825px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.62468523;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">L</tspan></tspan></text>
+    <text
+       id="text4526-0-2-0-9-8"
+       y="37.974659"
+       x="3.6019964"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:22.74105263px;line-height:125%;font-family:Sans;-inkscape-font-specification:'Sans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ff0000;fill-opacity:1;stroke:#ffffff;stroke-width:0.80000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       xml:space="preserve"><tspan
+         id="tspan7128-6-3"
+         style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:43.15790939px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ff0000;stroke:#ffffff;stroke-width:0.80000001;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         y="37.974659"
+         x="3.6019964"><tspan
+   id="tspan4593-6-3-7-8"
+   style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:47.08135605px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke:#ffffff;stroke-width:0.80000001;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">M</tspan>A<tspan
+   id="tspan4595-4-7-0-5"
+   style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:47.08135605px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke:#ffffff;stroke-width:0.80000001;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">X</tspan>W<tspan
+   id="tspan4597-1-7-0-2"
+   style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:47.08135605px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke:#ffffff;stroke-width:0.80000001;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">E</tspan>L<tspan
+   id="tspan4599-2-2-8-2"
+   style="font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:47.08135605px;font-family:'Century Schoolbook L';-inkscape-font-specification:'Century Schoolbook L, Bold Italic';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke:#ffffff;stroke-width:0.80000001;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">L</tspan></tspan></text>
+  </g>
+</svg>

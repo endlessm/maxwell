@@ -1,0 +1,98 @@
+/* maxwell-version.h.in
+ *
+ * Copyright (C) 2018 Endless Mobile, Inc.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+ */
+
+#ifndef MAXWELL_VERSION_H
+#define MAXWELL_VERSION_H
+
+#if !defined(MAXWELL_INSIDE) && !defined(MAXWELL_COMPILATION)
+# error "Only <maxwell-web-view.h> can be included directly."
+#endif
+
+/**
+ * SECTION:maxwell-web-viewversion
+ * @short_description: maxwell-web-view version checking
+ *
+ * maxwell-web-view provides macros to check the version of the library
+ * at compile-time
+ */
+
+/**
+ * MAXWELL_MAJOR_VERSION:
+ *
+ * maxwell-web-view major version component (e.g. 1 if %MAXWELL_VERSION is 1.2.3)
+ */
+#define MAXWELL_MAJOR_VERSION (@MAJOR_VERSION@)
+
+/**
+ * MAXWELL_MINOR_VERSION:
+ *
+ * maxwell-web-view minor version component (e.g. 2 if %MAXWELL_VERSION is 1.2.3)
+ */
+#define MAXWELL_MINOR_VERSION (@MINOR_VERSION@)
+
+/**
+ * MAXWELL_MICRO_VERSION:
+ *
+ * maxwell-web-view micro version component (e.g. 3 if %MAXWELL_VERSION is 1.2.3)
+ */
+#define MAXWELL_MICRO_VERSION (@MICRO_VERSION@)
+
+/**
+ * MAXWELL_VERSION
+ *
+ * maxwell-web-view version.
+ */
+#define MAXWELL_VERSION (@VERSION@)
+
+/**
+ * MAXWELL_VERSION_S:
+ *
+ * maxwell-web-view version, encoded as a string, useful for printing and
+ * concatenation.
+ */
+#define MAXWELL_VERSION_S "@VERSION@"
+
+#define MAXWELL_ENCODE_VERSION(major,minor,micro) \
+        ((major) << 24 | (minor) << 16 | (micro) << 8)
+
+/**
+ * MAXWELL_VERSION_HEX:
+ *
+ * maxwell-web-view version, encoded as an hexadecimal number, useful for
+ * integer comparisons.
+ */
+#define MAXWELL_VERSION_HEX \
+        (MAXWELL_ENCODE_VERSION (MAXWELL_MAJOR_VERSION, MAXWELL_MINOR_VERSION, MAXWELL_MICRO_VERSION))
+
+/**
+ * MAXWELL_CHECK_VERSION:
+ * @major: required major version
+ * @minor: required minor version
+ * @micro: required micro version
+ *
+ * Compile-time version checking. Evaluates to %TRUE if the version
+ * of maxwell-web-view is greater than the required one.
+ */
+#define MAXWELL_CHECK_VERSION(major,minor,micro)   \
+        (MAXWELL_MAJOR_VERSION > (major) || \
+         (MAXWELL_MAJOR_VERSION == (major) && MAXWELL_MINOR_VERSION > (minor)) || \
+         (MAXWELL_MAJOR_VERSION == (major) && MAXWELL_MINOR_VERSION == (minor) && \
+          MAXWELL_MICRO_VERSION >= (micro)))
+
+#endif /* MAXWELL_VERSION_H */
