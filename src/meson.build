@@ -11,10 +11,6 @@ maxwell_headers = [
   'maxwell-web-view.h',
 ]
 
-private_headers = [
-  'js-utils.h',
-]
-
 version_split = meson.project_version().split('.')
 MAJOR_VERSION = version_split[0]
 MINOR_VERSION = version_split[1]
@@ -46,7 +42,7 @@ maxwell_sources += gnome.compile_resources(
 )
 
 maxwell_lib = shared_library('maxwell-' + api_version,
-  maxwell_sources + private_headers,
+  maxwell_sources,
   dependencies: maxwell_deps,
   install: true,
 )
