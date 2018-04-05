@@ -493,6 +493,7 @@ ensure_offscreen (GtkWidget *webview, ChildData *data)
 {
   GdkScreen *screen = gtk_widget_get_screen (webview);
   GdkWindowAttr attributes;
+  gboolean mapped, realized;
 
   if (gtk_widget_get_name (data->child) == NULL || data->offscreen)
     return;
@@ -508,8 +509,11 @@ ensure_offscreen (GtkWidget *webview, ChildData *data)
                                     &attributes,
                                     GDK_WA_VISUAL);
 
-  gtk_widget_unmap (data->child);
-  gtk_widget_unrealize (data->child);
+  if ((mapped = gtk_widget_get_mapped (data->child)))
+    gtk_widget_unmap (data->child);
+
+  if ((realized = gtk_widget_get_realized (data->child)))
+    gtk_widget_unrealize (data->child);
 
   gtk_widget_register_window (webview, data->offscreen);
   gtk_widget_set_parent_window (data->child, data->offscreen);
@@ -525,9 +529,10 @@ ensure_offscreen (GtkWidget *webview, ChildData *data)
 
   gdk_window_show (data->offscreen);
 
-  gtk_widget_realize (data->child);
+  if (realized)
+    gtk_widget_realize (data->child);
 
-  if (gtk_widget_get_visible (data->child))
+  if (mapped)
     gtk_widget_map (data->child);
 }
 
