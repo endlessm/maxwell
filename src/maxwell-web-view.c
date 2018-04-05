@@ -578,7 +578,6 @@ static void
 maxwell_web_view_unrealize (GtkWidget *widget)
 {
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
-  GString *script = g_string_new ("");
   GList *l;
 
   for (l = priv->children; l; l = g_list_next (l))
@@ -590,18 +589,7 @@ maxwell_web_view_unrealize (GtkWidget *widget)
 
       gtk_widget_unregister_window (widget, data->offscreen);
       g_clear_pointer (&data->offscreen, gdk_window_destroy);
-
-      if (priv->script_loaded)
-        g_string_append_printf (script, "maxwell.child_set_visible ('%s', %s);\n",
-                                gtk_widget_get_name (data->child),
-                                gtk_widget_get_visible (data->child) ?
-                                  "true" : "false");
     }
-
-  if (priv->script_loaded)
-    js_run_string (widget, script);
-
-  g_string_free (script, TRUE);
 
   GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->unrealize (widget);
 }
