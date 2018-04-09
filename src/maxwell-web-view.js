@@ -215,7 +215,4 @@ window.maxwell.child_set_visible = function (id, visible) {
         child.style.display = (visible) ? child.maxwell_display_value : 'none';
 }
 
-/* Signal MaxwellWebView the script has finished loading */
-window.webkit.messageHandlers.maxwell_script_loaded.postMessage({});
-
 })();
