@@ -45,6 +45,7 @@ _js_run_finish_handler (GObject *object, GAsyncResult *result, gpointer data)
 
 void
 _js_run_printf (WebKitWebView *webview,
+                GCancellable  *cancellable,
                 const gchar   *function,
                 const gchar   *format,
                 ...)
@@ -57,18 +58,23 @@ _js_run_printf (WebKitWebView *webview,
   va_end (args);
 
   webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
-                                  script, NULL,
+                                  script,
+                                  cancellable,
                                   _js_run_finish_handler,
                                   g_strdup (function));
   g_free (script);
 }
 
 void
-_js_run_string (WebKitWebView *webview, const gchar *function, GString *script)
+_js_run_string (WebKitWebView *webview,
+                GCancellable  *cancellable,
+                const gchar   *function,
+                GString       *script)
 {
   if (script && script->len)
     webkit_web_view_run_javascript (WEBKIT_WEB_VIEW (webview),
-                                    script->str, NULL,
+                                    script->str,
+                                    cancellable,
                                     _js_run_finish_handler,
                                     g_strdup (function));
 }
