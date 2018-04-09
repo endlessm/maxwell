@@ -39,9 +39,9 @@ typedef struct
 
 typedef struct
 {
-  GList      *children;  /* List of ChildData */
-  GList      *pixbufs;   /* List of temp pixbufs to handle maxwell:// requests */
-  gboolean    script_loaded;
+  GList        *children;     /* List of ChildData */
+  GList        *pixbufs;      /* List of temp pixbufs to handle maxwell:// requests */
+  GCancellable *cancellable;  /* JavaScript cancellable */
 } MaxwellWebViewPrivate;
 
 enum
@@ -111,6 +111,9 @@ static void
 maxwell_web_view_dispose (GObject *object)
 {
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (object);
+
+  g_cancellable_cancel (priv->cancellable);
+  g_clear_object (&priv->cancellable);
 
   g_list_free_full (priv->pixbufs, g_object_unref);
   priv->pixbufs = NULL;
@@ -349,17 +352,8 @@ handle_script_message_children_init (WebKitUserContentManager *manager,
     }
 
   /* Initialize all children at once */
-  js_run_string (webview, script);
+  js_run_string (webview, priv->cancellable, script);
   g_string_free (script, TRUE);
-}
-
-static void
-handle_script_message_script_loaded (WebKitUserContentManager *manager,
-                                     WebKitJavascriptResult   *result,
-                                     MaxwellWebView           *webview)
-{
-  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
-  priv->script_loaded = TRUE;
 }
 
 #define EWV_DEFINE_MSG_HANDLER(manager, name, object) \
@@ -406,9 +400,6 @@ maxwell_web_view_constructed (GObject *object)
                                    WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
                                    NULL, NULL);
   webkit_user_content_manager_add_script (content_manager, script);
-
-  /* Signal script has been loaded */
-  EWV_DEFINE_MSG_HANDLER (content_manager, script_loaded, webview);
 
   /* Handle children position changes */
   EWV_DEFINE_MSG_HANDLER (content_manager, update_positions, webview);
@@ -551,7 +542,7 @@ maxwell_web_view_realize (GtkWidget *widget)
                            widget,
                            0);
 
-  if (priv->script_loaded)
+  if (priv->cancellable)
     script = g_string_new ("");
 
   for (l = priv->children; l; l = g_list_next (l))
@@ -569,7 +560,7 @@ maxwell_web_view_realize (GtkWidget *widget)
 
   if (script)
     {
-      js_run_string (widget, script);
+      js_run_string (widget, priv->cancellable, script);
       g_string_free (script, TRUE);
     }
 }
@@ -601,7 +592,7 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
   ChildData *data;
 
   /* Don't do anything if the support script did not finished loading */
-  if (!priv->script_loaded)
+  if (!priv->cancellable)
     return FALSE;
 
   data = get_child_data_by_offscreen (priv, event->window);
@@ -624,7 +615,8 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
       img_id = g_base64_encode ((const guchar *)&pixbuf, sizeof (GdkPixbuf *));
       priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
 
-      js_run_printf (widget, "maxwell.child_draw ('%s', '%s', %d, %d, %d, %d);",
+      js_run_printf (widget, priv->cancellable,
+                     "maxwell.child_draw ('%s', '%s', %d, %d, %d, %d);",
                      gtk_widget_get_name (data->child),
                      img_id,
                      event->area.x,
@@ -650,15 +642,13 @@ maxwell_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
     {
       ChildData *data = l->data;
 
-      if (child_allocate (data) && priv->script_loaded && data->offscreen)
+      if (child_allocate (data) && priv->cancellable && data->offscreen)
         g_string_append_printf (script, "maxwell.child_resize ('%s', %d, %d);\n",
                                 gtk_widget_get_name (data->child),
                                 data->alloc.width, data->alloc.height);
     }
 
-  if (priv->script_loaded)
-    js_run_string (widget, script);
-
+  js_run_string (widget, priv->cancellable, script);
   g_string_free (script, TRUE);
 }
 
@@ -698,8 +688,9 @@ child_update_visibility (MaxwellWebView *webview, GtkWidget *child)
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   ChildData *data = get_child_data_by_child (priv, child);
 
-  if (priv->script_loaded && data && gtk_widget_get_name (data->child))
-    js_run_printf (webview, "maxwell.child_set_visible ('%s', %s);",
+  if (priv->cancellable && data && gtk_widget_get_name (data->child))
+    js_run_printf (webview, priv->cancellable,
+                   "maxwell.child_set_visible ('%s', %s);",
                    gtk_widget_get_name (data->child),
                    gtk_widget_get_visible (child) ? "true" : "false");
 }
@@ -831,11 +822,33 @@ maxwell_web_view_button_release_event (GtkWidget *widget, GdkEventButton *event)
 }
 
 static void
+maxwell_web_view_load_changed (WebKitWebView  *webview,
+                               WebKitLoadEvent event)
+{
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
+
+  if (event != WEBKIT_LOAD_STARTED && event != WEBKIT_LOAD_FINISHED)
+    return;
+
+  /* Cancel all JS on load started */
+  if (priv->cancellable)
+    {
+      g_cancellable_cancel (priv->cancellable);
+      g_clear_object (&priv->cancellable);
+    }
+
+  /* Create a new GCancellable object when document finished loading */
+  if (event == WEBKIT_LOAD_FINISHED)
+    priv->cancellable = g_cancellable_new ();
+}
+
+static void
 maxwell_web_view_class_init (MaxwellWebViewClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
   GtkContainerClass *container_class = GTK_CONTAINER_CLASS (klass);
+  WebKitWebViewClass *web_view_class = WEBKIT_WEB_VIEW_CLASS (klass);
 
   object_class->dispose = maxwell_web_view_dispose;
   object_class->constructed = maxwell_web_view_constructed;
@@ -852,6 +865,8 @@ maxwell_web_view_class_init (MaxwellWebViewClass *klass)
   container_class->add = maxwell_web_view_add;
   container_class->remove = maxwell_web_view_remove;
   container_class->forall = maxwell_web_view_forall;
+
+  web_view_class->load_changed = maxwell_web_view_load_changed;
 }
 
 /* Public API */
