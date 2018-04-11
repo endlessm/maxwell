@@ -33,15 +33,18 @@ struct _MaxwellWebView
 typedef struct
 {
   GtkWidget     *child;
-  GdkWindow     *offscreen; /* child offscreen window */
-  GtkAllocation  alloc;     /* canvas allocation in viewport coordinates */
+  GdkWindow     *offscreen;   /* child offscreen window */
+  GtkRequisition minimum;     /* child minimum size */
+  GtkAllocation  alloc;       /* canvas allocation in viewport coordinates */
+  gboolean       dom_size;    /* use DOM allocation size */
+  GCancellable  *cancellable; /* JavaScript cancellable for this child */
 } ChildData;
 
 typedef struct
 {
   GList        *children;     /* List of ChildData */
   GList        *pixbufs;      /* List of temp pixbufs to handle maxwell:// requests */
-  GCancellable *cancellable;  /* JavaScript cancellable */
+  GCancellable *cancellable;  /* Global JavaScript cancellable */
 } MaxwellWebViewPrivate;
 
 enum
@@ -108,12 +111,30 @@ maxwell_web_view_init (MaxwellWebView *self)
 }
 
 static void
+children_cancellable_cancel (MaxwellWebView *webview)
+{
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
+  GList *l;
+
+  /* Cancel all children specific JS operations */
+  for (l = priv->children; l; l = g_list_next (l))
+    {
+      ChildData *data = l->data;
+
+      g_cancellable_cancel (data->cancellable);
+      g_clear_object (&data->cancellable);
+    }
+}
+
+static void
 maxwell_web_view_dispose (GObject *object)
 {
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (object);
 
   g_cancellable_cancel (priv->cancellable);
   g_clear_object (&priv->cancellable);
+
+  children_cancellable_cancel (MAXWELL_WEB_VIEW (object));
 
   g_list_free_full (priv->pixbufs, g_object_unref);
   priv->pixbufs = NULL;
@@ -183,14 +204,9 @@ on_maxwell_uri_scheme_request (WebKitURISchemeRequest *request,
         }
       else
         {
-          cairo_surface_t *surface;
-
-          /* No pixbuf id, return the whole offscreen */
-          surface = gdk_offscreen_window_get_surface (data->offscreen);
-          pixbuf = gdk_pixbuf_get_from_surface (surface, 0, 0,
-                                                data->alloc.width,
-                                                data->alloc.height);
-
+          pixbuf = gdk_pixbuf_get_from_window (data->offscreen, 0, 0,
+                                               gdk_window_get_width (data->offscreen),
+                                               gdk_window_get_height (data->offscreen));
           priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
         }
 
@@ -245,9 +261,9 @@ on_maxwell_uri_scheme_request (WebKitURISchemeRequest *request,
 }
 
 static void
-handle_script_message_update_positions (WebKitUserContentManager *manager,
-                                        WebKitJavascriptResult   *result,
-                                        MaxwellWebView           *webview)
+handle_script_message_children_move_resize (WebKitUserContentManager *manager,
+                                            WebKitJavascriptResult   *result,
+                                            MaxwellWebView           *webview)
 {
   MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   JSGlobalContextRef context = webkit_javascript_result_get_global_context (result);
@@ -273,8 +289,19 @@ handle_script_message_update_positions (WebKitUserContentManager *manager,
 
       if (data)
         {
+          gint w = _js_object_get_number (context, obj, "width");
+          gint h = _js_object_get_number (context, obj, "height");
+
           data->alloc.x = _js_object_get_number (context, obj, "x");
           data->alloc.y = _js_object_get_number (context, obj, "y");
+
+          if (w && h && (data->alloc.width != w || data->alloc.height != h))
+            {
+              data->dom_size = TRUE;
+              data->alloc.width = w;
+              data->alloc.height = h;
+              gtk_widget_queue_resize (data->child);
+            }
         }
 
       g_free (child_id);
@@ -282,32 +309,64 @@ handle_script_message_update_positions (WebKitUserContentManager *manager,
     }
 }
 
-static gboolean
-child_allocate (ChildData *data)
+static void
+child_allocate (MaxwellWebView *webview, ChildData *data)
 {
-  GtkRequisition natural;
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
+  GtkRequisition *minimum = &data->minimum;
   GtkAllocation alloc;
 
-  gtk_widget_get_preferred_size (data->child, NULL, &natural);
+  gtk_widget_get_preferred_size (data->child, minimum, NULL);
 
-  if (natural.width == data->alloc.width && natural.height == data->alloc.height)
-    return FALSE;
+  if (data->dom_size)
+    {
+      gtk_widget_get_allocation (data->child, &alloc);
 
-  alloc.x = 0;
-  alloc.y = 0;
-  alloc.height = natural.height;
-  alloc.width = natural.width;
+      if (alloc.width == data->alloc.width && alloc.height == data->alloc.height)
+        return;
 
-  /* Update canvas alloc size */
-  data->alloc.width = natural.width;
-  data->alloc.height = natural.height;
+      if (data->alloc.width <= 0)
+        data->alloc.width = minimum->width;
 
+      if (data->alloc.height <= 0)
+        data->alloc.height = minimum->height;
+
+      alloc.width = data->alloc.width;
+      alloc.height = data->alloc.height;
+    }
+  else
+    {
+      if (minimum->width == data->alloc.width && minimum->height == data->alloc.height)
+        return;
+
+      alloc.width = minimum->width;
+      alloc.height = minimum->height;
+
+      data->alloc.width = alloc.width;
+      data->alloc.height = alloc.height;
+    }
+
+  alloc.x = alloc.y = 0;
   gtk_widget_size_allocate (data->child, &alloc);
 
   if (data->offscreen)
-    gdk_window_resize (data->offscreen, natural.width, natural.height);
+    {
+      gdk_window_resize (data->offscreen, alloc.width, alloc.height);
 
-  return TRUE;
+      if (!priv->cancellable)
+        return;
+
+      /* Cancel any pending resize or draw operation and start over */
+      g_cancellable_cancel (data->cancellable);
+      g_clear_object (&data->cancellable);
+      data->cancellable = g_cancellable_new ();
+
+      js_run_printf (webview, data->cancellable,
+                     "maxwell.child_resize ('%s', %d, %d, %d, %d);\n",
+                     gtk_widget_get_name (data->child),
+                     alloc.width, alloc.height,
+                     minimum->width, minimum->height);
+    }
 }
 
 static void
@@ -333,19 +392,38 @@ handle_script_message_children_init (WebKitUserContentManager *manager,
   script = g_string_new ("");
 
   while ((val = JSObjectGetPropertyAtIndex (context, array, i, NULL)) &&
-         JSValueIsString (context, val))
+         JSValueIsObject (context, val))
     {
-      gchar *id = _js_get_string (context, val);
+      JSObjectRef obj = JSValueToObject (context, val, NULL);
+      gchar *id = _js_object_get_string (context, obj, "id");
       ChildData *data = get_child_data_by_id (priv, id);
 
       if (data && data->offscreen && data->alloc.width && data->alloc.height)
         {
           /* Collect children to initialize */
-          g_string_append_printf (script,
-                                  "maxwell.child_resize ('%s', %d, %d);\n"
-                                  "maxwell.child_set_visible ('%s', %s);\n",
-                                  id, data->alloc.width, data->alloc.height,
-                                  id, gtk_widget_get_visible (data->child) ? "true" : "false");
+          if (gtk_widget_get_visible (data->child))
+            {
+              g_string_append_printf (script,
+                                      "maxwell.child_set_visible ('%s', true);\n",
+                                      id);
+
+              /* Dont force allocation for widgets that must honor DOM tree size
+               * Just show it and let the DOM tree mutate and trigger a resize
+               */
+              if (!_js_object_get_number (context, obj, "use_dom_size"))
+                g_string_append_printf (script,
+                                        "maxwell.child_resize ('%s', %d, %d, %d, %d);\n",
+                                        id,
+                                        data->alloc.width, data->alloc.height,
+                                        data->minimum.width, data->minimum.height);
+
+            }
+          else
+            {
+              g_string_append_printf (script,
+                                      "maxwell.child_set_visible ('%s', false);\n",
+                                      id);
+            }
         }
       g_free (id);
       i++;
@@ -401,11 +479,11 @@ maxwell_web_view_constructed (GObject *object)
                                    NULL, NULL);
   webkit_user_content_manager_add_script (content_manager, script);
 
-  /* Handle children position changes */
-  EWV_DEFINE_MSG_HANDLER (content_manager, update_positions, webview);
-
   /* Init canvas elements added to the DOM */
   EWV_DEFINE_MSG_HANDLER (content_manager, children_init, webview);
+
+  /* Handle children position changes */
+  EWV_DEFINE_MSG_HANDLER (content_manager, children_move_resize, webview);
 
   webkit_user_script_unref (script);
   g_bytes_unref (script_source);
@@ -615,7 +693,7 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
       img_id = g_base64_encode ((const guchar *)&pixbuf, sizeof (GdkPixbuf *));
       priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
 
-      js_run_printf (widget, priv->cancellable,
+      js_run_printf (widget, data->cancellable,
                      "maxwell.child_draw ('%s', '%s', %d, %d, %d, %d);",
                      gtk_widget_get_name (data->child),
                      img_id,
@@ -632,24 +710,14 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
 static void
 maxwell_web_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
 {
-  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (widget);
-  GString *script = g_string_new ("");
+  MaxwellWebView *webview = MAXWELL_WEB_VIEW (widget);
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   GList *l;
 
   GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->size_allocate (widget, allocation);
 
   for (l = priv->children; l; l = g_list_next (l))
-    {
-      ChildData *data = l->data;
-
-      if (child_allocate (data) && priv->cancellable && data->offscreen)
-        g_string_append_printf (script, "maxwell.child_resize ('%s', %d, %d);\n",
-                                gtk_widget_get_name (data->child),
-                                data->alloc.width, data->alloc.height);
-    }
-
-  js_run_string (widget, priv->cancellable, script);
-  g_string_free (script, TRUE);
+    child_allocate (webview, l->data);
 }
 
 static gboolean
@@ -831,11 +899,9 @@ maxwell_web_view_load_changed (WebKitWebView  *webview,
     return;
 
   /* Cancel all JS on load started */
-  if (priv->cancellable)
-    {
-      g_cancellable_cancel (priv->cancellable);
-      g_clear_object (&priv->cancellable);
-    }
+  children_cancellable_cancel (MAXWELL_WEB_VIEW (webview));
+  g_cancellable_cancel (priv->cancellable);
+  g_clear_object (&priv->cancellable);
 
   /* Create a new GCancellable object when document finished loading */
   if (event == WEBKIT_LOAD_FINISHED)
