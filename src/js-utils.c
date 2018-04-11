@@ -33,13 +33,18 @@ _js_run_finish_handler (GObject *object, GAsyncResult *result, gpointer data)
 
   js_result = webkit_web_view_run_javascript_finish (WEBKIT_WEB_VIEW (object),
                                                      result, &error);
-  if (!js_result)
+  if (js_result)
     {
-      g_warning ("JS Error in %s(): %s", function, error->message);
+      webkit_javascript_result_unref (js_result);
+    }
+  else
+    {
+      if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+        g_warning ("JS Error in %s(): %s", function, error->message);
+
       g_error_free (error);
     }
 
-  webkit_javascript_result_unref (js_result);
   g_free (function);
 }
 
