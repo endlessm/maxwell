@@ -23,66 +23,54 @@
 
 (function() {
 
-function throttle (func, limit) {
-    let stamp, id;
+let children = [];             /* List of children */
+let children_hash = new Map(); /* Hash table of children */
 
-    return () => {
-        let self = this;
-        let args = arguments;
+function update_position_size () {
+    let positions = null;
 
-        if (!stamp) {
-            func.apply(self, args);
-            stamp = Date.now();
-            return;
-        }
-
-        clearTimeout(id);
-        id = setTimeout(() => {
-            let now = Date.now();
-            if (now - stamp >= limit) {
-                func.apply(self, args);
-                stamp = now;
-            }
-        }, limit - (Date.now() - stamp));
-    }
-}
-
-function update_positions () {
-    let children = window.maxwell.children;
-    let positions = new Array ();
-
-    for (let id in children) {
-        let child = children[id];
+    for (let i = 0, len = children.length; i < len; i++) {
+        let child = children[i];
+        let child_rect = child.maxwell.rect;
         let rect = child.getBoundingClientRect();
-        let x = rect.x;
-        let y = rect.y;
 
         /* Bail if position did not changed */
-        if (child.maxwell_position_x === x && child.maxwell_position_y === y)
+        if (child_rect &&
+            child_rect.x === rect.x &&
+            child_rect.y === rect.y &&
+            child_rect.width === rect.width &&
+            child_rect.height === rect.height)
             continue;
 
         /* Update position in cache */
-        child.maxwell_position_x = x;
-        child.maxwell_position_y = y;
+        child.maxwell.rect = rect;
+
+        /* Ensure array */
+        if (!positions)
+            positions = [];
 
         /* Collect new positions */
-        positions.push ({ id: id, x: x, y: y });
+        positions.push({
+            id: child.id,
+            x: rect.x,
+            y: rect.y,
+            width: child.maxwell.dom_width ? rect.width : -1,
+            height: child.maxwell.dom_height ? rect.height : -1
+        });
     }
 
     /* Update all positions in MaxwellWebView at once to reduce messages */
-    window.webkit.messageHandlers.maxwell_update_positions.postMessage(positions);
+    if (positions)
+        window.webkit.messageHandlers.maxwell_children_move_resize.postMessage(positions);
 }
 
-/* Limit to 10Hz */
-let update_positions_throttled = throttle(update_positions, 100);
-
 /* We need to update widget positions on scroll and resize events */
-window.addEventListener("scroll", update_positions_throttled, { passive: true });
-window.addEventListener("resize", update_positions_throttled, { passive: true });
+window.addEventListener("scroll", update_position_size, { passive: true });
+window.addEventListener("resize", update_position_size, { passive: true });
 
 /* We also need to update it on any DOM change */
 function document_mutation_handler (mutations) {
-    let children = new Array ();
+    let new_children = null;
 
     for (var mutation of mutations) {
         if (mutation.type !== 'childList')
@@ -101,24 +89,47 @@ function document_mutation_handler (mutations) {
             /* Hide all widgets by default */
             child.style.display = 'none';
 
+            /* Make sure canvas content do not get stretched when the style size changes */
+            child.style.objectFit = 'none';
+
+            /* Make sure content position is at start */
+            child.style.objectPosition = '0px 0px';
+
             /* And set no size (canvas default is 300x150) */
             child.width = 0;
             child.height = 0;
 
-            /* Keep a reference in a hash table for quick access */
-            maxwell.children[child.id] = child;
+            /* Setup child data */
+            child.maxwell = {
+                dom_width: (child.style.width && child.style.width !== 'auto') || false,
+                dom_height: (child.style.height && child.style.height !== 'auto') || false,
+            };
+
+            /* Keep a reference in a hash table for quick lookup */
+            children_hash[child.id] = child;
+
+            /* And another one in an array for quick iteration */
+            children.push(child);
+
+            /* Ensure array */
+            if (!new_children)
+                new_children = [];
 
             /* Collect children to allocate */
-            children.push(child.id);
+            new_children.push({
+                id: child.id,
+                use_dom_size: (child.maxwell.dom_width || child.maxwell.dom_height),
+            });
         }
     }
 
-    window.webkit.messageHandlers.maxwell_children_init.postMessage(children);
+    if (new_children)
+        window.webkit.messageHandlers.maxwell_children_init.postMessage(new_children);
 
     /* Extra paranoid, update positions if anything changes in the DOM tree!
      * ideally it would be nice to directly observe BoundingClientRect changes.
      */
-    update_positions_throttled();
+    update_position_size();
 };
 
 /* Main DOM observer */
@@ -159,13 +170,10 @@ function get_image (id, image_id, width, height) {
 /* Main entry point */
 window.maxwell = {};
 
-/* List of children */
-window.maxwell.children = {};
-
 /* child_resize()
  */
-window.maxwell.child_resize = function (id, width, height) {
-    let child = maxwell.children[id];
+window.maxwell.child_resize = function (id, width, height, minWidth, minHeight) {
+    let child = children_hash[id];
 
     if (!child || (child.width === width && child.height === height))
         return;
@@ -173,13 +181,27 @@ window.maxwell.child_resize = function (id, width, height) {
     /* Get image data first */
     let image = get_image(id, null, width, height);
 
-    /* Resize canvas */
+    /* Resize canvas to the actual widget allocation */
     child.width = width;
     child.height = height;
 
+    /* Minimum size as returned by gtk_widget_get_preferred_size() */
+    child.style.minWidth = minWidth + 'px';
+    child.style.minHeight = minHeight + 'px';
+
+    /* Force DOM tree to honor sizes from GTK */
+    if (!child.maxwell.dom_width)
+        child.style.width = minWidth + 'px';
+
+    if (!child.maxwell.dom_height)
+        child.style.height = minHeight + 'px';
+
     /* Update contents ASAP */
-    if (image)
-        child.getContext('2d').putImageData(image, 0, 0);
+    if (image) {
+        let ctx = child.getContext('2d');
+        ctx.globalCompositeOperation = "copy";
+        ctx.putImageData(image, 0, 0);
+    }
 }
 
 /* child_draw()
@@ -191,7 +213,7 @@ window.maxwell.child_resize = function (id, width, height) {
  * itself
  */
 window.maxwell.child_draw = function (id, image_id, x, y, width, height) {
-    let child = maxwell.children[id];
+    let child = children_hash[id];
 
     if (!child)
         return;
@@ -200,8 +222,11 @@ window.maxwell.child_draw = function (id, image_id, x, y, width, height) {
     let image = get_image(id, image_id, width, height);
 
     /* Update contents */
-    if (image)
-        child.getContext('2d').putImageData(image, x, y);
+    if (image) {
+        let ctx = child.getContext('2d');
+        ctx.globalCompositeOperation = "copy";
+        ctx.putImageData(image, x, y);
+    }
 }
 
 /* child_set_visible()
@@ -209,7 +234,7 @@ window.maxwell.child_draw = function (id, image_id, x, y, width, height) {
  * Show/hide widget element
  */
 window.maxwell.child_set_visible = function (id, visible) {
-    let child = maxwell.children[id];
+    let child = children_hash[id];
 
     if (child)
         child.style.display = (visible) ? child.maxwell_display_value : 'none';

@@ -79,7 +79,7 @@ main (int argc, char *argv[])
                              "  <h1>MaxwellWebview Test</h1>"
                              "Lorem ipsum dolor sit amet, consectetur adipiscing elit,<br>"
                              "  <h2>A GtkButton</h2>"
-                             "   <canvas class=\"GtkWidget\" id=\"box\"></canvas>"
+                             "   <canvas class=\"GtkWidget\" id=\"box\" style=\"width: 100%;\"></canvas>"
                              "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.<br>"
                              "  <h2>A HTML text input</h2>"
                              "  <input type=\"text\">"
