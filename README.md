@@ -77,6 +77,13 @@ you used as the widget's name.
 <canvas class="GtkWidget" id="myentry"></canvas>
 ```
 
+Maxwell will also try to honor width and height style properties set on the
+canvas element.
+So for example if you want your widget to expand horizontally you can do:
+```html
+<canvas class="GtkWidget" style="width: 100%;" id="myentry"></canvas>
+```
+
 ## Building
  * Install [meson] and [ninja]
  * `$ sudo apt-get install meson`
