@@ -83,8 +83,13 @@ function document_mutation_handler (mutations) {
                 !child.classList.contains('GtkWidget'))
                 continue;
 
-            /* Save original display value */
-            child.maxwell_display_value = child.style.display;
+            /* Setup child data */
+            child.maxwell = {
+                display_value: child.style.display,
+                draw_requests: [],
+                dom_width: (child.style.width && child.style.width !== 'auto') || false,
+                dom_height: (child.style.height && child.style.height !== 'auto') || false,
+            };
 
             /* Hide all widgets by default */
             child.style.display = 'none';
@@ -98,12 +103,6 @@ function document_mutation_handler (mutations) {
             /* And set no size (canvas default is 300x150) */
             child.width = 0;
             child.height = 0;
-
-            /* Setup child data */
-            child.maxwell = {
-                dom_width: (child.style.width && child.style.width !== 'auto') || false,
-                dom_height: (child.style.height && child.style.height !== 'auto') || false,
-            };
 
             /* Keep a reference in a hash table for quick lookup */
             children_hash[child.id] = child;
@@ -140,31 +139,6 @@ observer.observe(document, {
     attributes: true
 });
 
-/* Get image data */
-function get_image (id, image_id, width, height) {
-    let xhr = new XMLHttpRequest();
-    let uri = 'maxwell:///' + id;
-
-    if (image_id)
-        uri += '?' + image_id;
-
-    xhr.open('GET', uri, false);
-    xhr.responseType = 'arraybuffer';
-
-    try {
-        xhr.send();
-    } catch (error) {
-        return null;
-    }
-
-    if (xhr.response) {
-        let data = new Uint8ClampedArray(xhr.response);
-        return new ImageData(data, width, height);
-    }
-
-    return null;
-}
-
 /* Semi Public API */
 
 /* Main entry point */
@@ -178,12 +152,26 @@ window.maxwell.child_resize = function (id, width, height, minWidth, minHeight) 
     if (!child || (child.width === width && child.height === height))
         return;
 
-    /* Get image data first */
-    let image = get_image(id, null, width, height);
+    /* Abort all pending draw request */
+    child.maxwell.draw_requests.forEach((req) => { req.abort(); });
+    child.maxwell.draw_requests = [];
+
+    /* Resizing canvas clears it, so we need to save the image contents */
+    let ctx = child.getContext('2d');
+    let image = null;
+
+    if (child.width && child.height)
+        image = ctx.getImageData(0, 0, child.width, child.height);
 
     /* Resize canvas to the actual widget allocation */
     child.width = width;
     child.height = height;
+
+    /* Repaint old image to avoid flickering */
+    if (image) {
+        ctx.globalCompositeOperation = "copy";
+        ctx.putImageData(image, 0, 0);
+    }
 
     /* Minimum size as returned by gtk_widget_get_preferred_size() */
     child.style.minWidth = minWidth + 'px';
@@ -195,13 +183,34 @@ window.maxwell.child_resize = function (id, width, height, minWidth, minHeight) 
 
     if (!child.maxwell.dom_height)
         child.style.height = minHeight + 'px';
+}
 
-    /* Update contents ASAP */
-    if (image) {
-        let ctx = child.getContext('2d');
-        ctx.globalCompositeOperation = "copy";
-        ctx.putImageData(image, 0, 0);
+function on_child_draw_load () {
+    let child = this.maxwell.child;
+    let requests = child.maxwell.draw_requests;
+    let ctx = child.getContext('2d');
+    let i, len;
+
+    /* Remove request if failed, otherwise it will be removed once drawn */
+    if (!this.response)
+        requests.splice(requests.indexOf(this), 1);
+
+    ctx.globalCompositeOperation = "copy";
+
+    for (i = 0, len = requests.length; i < len && requests[i].response; i++) {
+        let dReq = requests[i];
+        let data = new Uint8ClampedArray(dReq.response);
+
+        try {
+            let image = new ImageData(data, dReq.maxwell.width, dReq.maxwell.height);
+            /* Update contents */
+            ctx.putImageData(image, dReq.maxwell.x, dReq.maxwell.y);
+        } catch (error) {
+        }
     }
+
+    /* Remove all request that were drawn */
+    requests.splice(0, i);
 }
 
 /* child_draw()
@@ -219,13 +228,19 @@ window.maxwell.child_draw = function (id, image_id, x, y, width, height) {
         return;
 
     /* Get image data */
-    let image = get_image(id, image_id, width, height);
+    let xhr = new XMLHttpRequest();
 
-    /* Update contents */
-    if (image) {
-        let ctx = child.getContext('2d');
-        ctx.globalCompositeOperation = "copy";
-        ctx.putImageData(image, x, y);
+    xhr.open('GET', 'maxwell:///' + image_id);
+    xhr.responseType = 'arraybuffer';
+    xhr.addEventListener('load', on_child_draw_load);
+    xhr.maxwell = { child, x, y, width, height };
+
+    /* Add request to stack */
+    child.maxwell.draw_requests.push(xhr);
+
+    try {
+        xhr.send();
+    } catch (error) {
     }
 }
 
@@ -236,8 +251,10 @@ window.maxwell.child_draw = function (id, image_id, x, y, width, height) {
 window.maxwell.child_set_visible = function (id, visible) {
     let child = children_hash[id];
 
-    if (child)
-        child.style.display = (visible) ? child.maxwell_display_value : 'none';
+    if (!child)
+        return;
+
+    child.style.display = (visible) ? child.maxwell.display_value : 'none';
 }
 
 })();
