@@ -42,8 +42,15 @@ typedef struct
 
 typedef struct
 {
+  guint      id;              /* Unique id */
+  GdkPixbuf *pixbuf;          /* A Pixbuf */
+} PixbufData;
+
+typedef struct
+{
   GList        *children;     /* List of ChildData */
-  GList        *pixbufs;      /* List of temp pixbufs to handle maxwell:// requests */
+  GQueue       *pixbufs;      /* List of PixbufData to handle maxwell:// requests */
+  guint         pixbuf_count; /* Pixbuf counter, used as id */
   GCancellable *cancellable;  /* Global JavaScript cancellable */
 } MaxwellWebViewPrivate;
 
@@ -105,9 +112,51 @@ MWV_DEFINE_CHILD_GETTER (id, const gchar *, !g_strcmp0 (gtk_widget_get_name (dat
 MWV_DEFINE_CHILD_GETTER (child, GtkWidget *, data->child == child)
 MWV_DEFINE_CHILD_GETTER (offscreen, GdkWindow *, data->offscreen == offscreen)
 
+static PixbufData *
+maxwell_web_view_pixbuf_new (GdkPixbuf *pixbuf, guint id)
+{
+  PixbufData *data = g_slice_new0 (PixbufData);
+
+  data->id = id;
+  data->pixbuf = pixbuf;
+
+  return data;
+}
+
+static void
+maxwell_web_view_pixbuf_free (PixbufData *data)
+{
+  if (data == NULL)
+    return;
+
+  g_clear_object (&data->pixbuf);
+
+  g_slice_free (PixbufData, data);
+}
+
+PixbufData *
+get_pixbuf_data (MaxwellWebViewPrivate *priv, guint id)
+{
+  GList *l;
+
+  if (!priv->pixbufs)
+    return NULL;
+
+  for (l = priv->pixbufs->head; l; l = g_list_next (l))
+    {
+      PixbufData *data = l->data;
+      if (data->id == id)
+        return data;
+    }
+  return NULL;
+}
+
 static void
 maxwell_web_view_init (MaxwellWebView *self)
 {
+  MaxwellWebViewPrivate *priv = MAXWELL_WEB_VIEW_PRIVATE (self);
+
+  priv->pixbufs = g_queue_new ();
 }
 
 static void
@@ -136,8 +185,11 @@ maxwell_web_view_dispose (GObject *object)
 
   children_cancellable_cancel (MAXWELL_WEB_VIEW (object));
 
-  g_list_free_full (priv->pixbufs, g_object_unref);
-  priv->pixbufs = NULL;
+  if (priv->pixbufs)
+    {
+      g_queue_free_full (priv->pixbufs,(GDestroyNotify) maxwell_web_view_pixbuf_free);
+      priv->pixbufs = NULL;
+    }
 
   /* GtkContainer dispose will free children */
   G_OBJECT_CLASS (maxwell_web_view_parent_class)->dispose (object);
@@ -149,9 +201,10 @@ on_maxwell_uri_scheme_request (WebKitURISchemeRequest *request,
 {
   WebKitWebView *webview = webkit_uri_scheme_request_get_web_view (request);
   MaxwellWebViewPrivate *priv;
-  const gchar *path;
   GError *error = NULL;
-  ChildData *data;
+  const gchar *path;
+  PixbufData *data;
+  guint id;
 
   /* Context can be shared with others WebView */
   if (!MAXWELL_IS_WEB_VIEW (webview))
@@ -167,88 +220,41 @@ on_maxwell_uri_scheme_request (WebKitURISchemeRequest *request,
   priv = MAXWELL_WEB_VIEW_PRIVATE (webview);
   path = webkit_uri_scheme_request_get_path (request);
 
+  /*
+   * maxwell:///pixbuf_id
+   *
+   * Where 'pixbuf_id' is a GdkPixbuf pointer encoded in base64
+   *
+   * GdkPixbuf are created in damage-event handler and pushed to priv->pixbufs
+   * for us to consume.
+   */
   if (path && *path == '/' &&
-      (data = get_child_data_by_id (priv, &path[1])) &&
-      gtk_widget_get_visible (data->child) &&
-      data->offscreen)
+      (id = g_ascii_strtoll (&path[1], NULL, 10)) &&
+      (data = get_pixbuf_data (priv, id)))
     {
-      const gchar *uri = webkit_uri_scheme_request_get_uri (request);
-      GdkPixbuf *pixbuf = NULL;
-      gchar *pixbuf_id;
+      const guint8 *pixels = gdk_pixbuf_read_pixels (data->pixbuf);
+      GInputStream *stream = NULL;
+      gsize len;
 
-      /*
-       * maxwell:///id[?pixbuf]
-       *
-       * Where 'id' is the child id and 'pixbuf' is an optional GdkPixbuf
-       * pointer encoded in base64
-       *
-       * GdkPixbuf are created in damage-event handler and pushed to priv->pixbufs
-       * for us to consume if the uri includes the pixbuf id.
-       * Otherwise if there is no specific image requested we return the whole
-       * offscreen
+      len = gdk_pixbuf_get_height (data->pixbuf) *
+            gdk_pixbuf_get_rowstride (data->pixbuf);
+
+      stream = g_memory_input_stream_new_from_data (pixels, len, NULL);
+      webkit_uri_scheme_request_finish (request, stream, len,
+                                        "application/octet-stream");
+
+      /* Add a week reference to free the Pixbuf when stream if finalized */
+      g_object_weak_ref (G_OBJECT (stream),
+                         (GWeakNotify) maxwell_web_view_pixbuf_free,
+                         data);
+
+      /* Pixbuf is no longer our responsibility, stream will take care
+       * of freeing it when it's finalized
        */
-      if ((pixbuf_id = g_strstr_len (uri, -1, "?")))
-        {
-          guchar *image_data;
-          gsize len;
+      g_queue_remove (priv->pixbufs, data);
 
-          if ((image_data = g_base64_decode (&pixbuf_id[1], &len)) &&
-              len == sizeof (GdkPixbuf *))
-            {
-              pixbuf = *((GdkPixbuf **)image_data);
-              if (!g_list_find (priv->pixbufs, pixbuf))
-                pixbuf = NULL;
-            }
-
-          g_free (image_data);
-        }
-      else
-        {
-          pixbuf = gdk_pixbuf_get_from_window (data->offscreen, 0, 0,
-                                               gdk_window_get_width (data->offscreen),
-                                               gdk_window_get_height (data->offscreen));
-          priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
-        }
-
-      if (pixbuf &&
-          gdk_pixbuf_get_colorspace (pixbuf) == GDK_COLORSPACE_RGB &&
-          gdk_pixbuf_get_bits_per_sample (pixbuf) == 8 &&
-          gdk_pixbuf_get_has_alpha (pixbuf))
-        {
-          const guint8 *pixels = gdk_pixbuf_read_pixels (pixbuf);
-          GInputStream *stream = NULL;
-          gsize len;
-
-          len = gdk_pixbuf_get_height (pixbuf) *
-                gdk_pixbuf_get_rowstride (pixbuf);
-
-          stream = g_memory_input_stream_new_from_data (pixels, len, NULL);
-          webkit_uri_scheme_request_finish (request, stream, len,
-                                            "application/octet-stream");
-
-          /* Add a week reference to free the Pixbuf when stream if finalized */
-          g_object_weak_ref (G_OBJECT (stream),
-                             (GWeakNotify) g_object_unref,
-                             pixbuf);
-
-          /* Pixbuf is no longer our responsibility, stream will take care
-           * of freeing it when it's finalized
-           */
-          priv->pixbufs = g_list_remove (priv->pixbufs, pixbuf);
-
-          g_object_unref (stream);
-          return;
-        }
-      else if (pixbuf)
-        {
-          /* Pixbuf is not in RGBA format, ignore it */
-          priv->pixbufs = g_list_remove (priv->pixbufs, pixbuf);
-          g_object_unref (pixbuf);
-
-          error = g_error_new (MAXWELL_ERROR, MAXWELL_ERROR_URI,
-                               "Wrong image data format for %s",
-                               uri);
-        }
+      g_object_unref (stream);
+      return;
     }
 
   if (!error)
@@ -679,29 +685,32 @@ maxwell_web_view_damage_event (GtkWidget *widget, GdkEventExpose *event)
       gtk_widget_get_name (data->child) &&
       gtk_widget_get_visible (data->child))
     {
-      cairo_surface_t *surface;
-      GdkPixbuf *pixbuf;
-      gchar *img_id;
+      GdkPixbuf *pixbuf = gdk_pixbuf_get_from_window (data->offscreen,
+                                                      event->area.x,
+                                                      event->area.y,
+                                                      event->area.width,
+                                                      event->area.height);
 
-      surface = gdk_offscreen_window_get_surface (data->offscreen);
-      pixbuf = gdk_pixbuf_get_from_surface (surface,
-                                            event->area.x,
-                                            event->area.y,
-                                            event->area.width,
-                                            event->area.height);
+      /* Double check format is what JavaScript ImageData expects */
+      if (pixbuf &&
+          gdk_pixbuf_get_colorspace (pixbuf) == GDK_COLORSPACE_RGB &&
+          gdk_pixbuf_get_bits_per_sample (pixbuf) == 8 &&
+          gdk_pixbuf_get_has_alpha (pixbuf))
+        {
+          guint id = ++priv->pixbuf_count;
 
-      img_id = g_base64_encode ((const guchar *)&pixbuf, sizeof (GdkPixbuf *));
-      priv->pixbufs = g_list_prepend (priv->pixbufs, pixbuf);
+          g_queue_push_tail (priv->pixbufs,
+                             maxwell_web_view_pixbuf_new (pixbuf, id));
 
-      js_run_printf (widget, data->cancellable,
-                     "maxwell.child_draw ('%s', '%s', %d, %d, %d, %d);",
-                     gtk_widget_get_name (data->child),
-                     img_id,
-                     event->area.x,
-                     event->area.y,
-                     event->area.width,
-                     event->area.height);
-      g_free (img_id);
+          js_run_printf (widget, data->cancellable,
+                         "maxwell.child_draw ('%s', '%u', %d, %d, %d, %d);",
+                         gtk_widget_get_name (data->child),
+                         id,
+                         event->area.x,
+                         event->area.y,
+                         event->area.width,
+                         event->area.height);
+        }
     }
 
   return FALSE;
