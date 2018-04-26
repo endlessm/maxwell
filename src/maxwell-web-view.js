@@ -27,12 +27,30 @@ let children = [];             /* List of children */
 let children_hash = new Map(); /* Hash table of children */
 
 function update_position_size () {
+    let scale = window.devicePixelRatio;
     let positions = null;
 
     for (let i = 0, len = children.length; i < len; i++) {
         let child = children[i];
         let child_rect = child.maxwell.rect;
         let rect = child.getBoundingClientRect();
+
+        /* FIXME: Setting CSS zoom property breaks getBoundingClientRect()
+         *
+         * X and Y are divided by zoom instead of multiplying width and height
+         * by it.
+         * Note that zoom is 1/scale so to get the original value we need to
+         * add scroll then divide by scale, which is the same as multiplying by
+         * zoom and finally subtract scroll.
+         *
+         * See: https://bugs.webkit.org/show_bug.cgi?id=185034
+         */
+        if (scale !== 1) {
+            rect.x = ((rect.x + window.scrollX) / scale) - window.scrollX;
+            rect.y = ((rect.y + window.scrollY) / scale) - window.scrollY;
+            rect.width /= scale;
+            rect.height /= scale;
+        }
 
         /* Bail if position did not changed */
         if (child_rect &&
@@ -98,7 +116,7 @@ function document_mutation_handler (mutations) {
             child.style.objectFit = 'none';
 
             /* Make sure content position is at start */
-            child.style.objectPosition = '0px 0px';
+            child.style.objectPosition = 'left top';
 
             /* And set no size (canvas default is 300x150) */
             child.width = 0;
@@ -147,10 +165,25 @@ window.maxwell = {};
 /* child_resize()
  */
 window.maxwell.child_resize = function (id, width, height, minWidth, minHeight) {
+    let scale = window.devicePixelRatio;
     let child = children_hash[id];
+
+    /* On HiDPI we make the canvas bigger so the backing store matches the
+     * display resolution and the set zoom CSS property acordingly so it will
+     * be rendered at the right resolution.
+     */
+    if (scale !== 1) {
+        width *= scale;
+        height *= scale;
+        minWidth *= scale;
+        minHeight *= scale;
+    }
 
     if (!child || (child.width === width && child.height === height))
         return;
+
+    if (scale !== 1)
+        child.style.zoom = 1/scale;
 
     /* Abort all pending draw request */
     child.maxwell.draw_requests.forEach((req) => { req.abort(); });
@@ -202,10 +235,13 @@ function on_child_draw_load () {
         let data = new Uint8ClampedArray(dReq.response);
 
         try {
-            let image = new ImageData(data, dReq.maxwell.width, dReq.maxwell.height);
+            let scale = window.devicePixelRatio;
+            let image = new ImageData(data, dReq.maxwell.width * scale, dReq.maxwell.height * scale);
+
             /* Update contents */
-            ctx.putImageData(image, dReq.maxwell.x, dReq.maxwell.y);
+            ctx.putImageData(image, dReq.maxwell.x * scale, dReq.maxwell.y * scale);
         } catch (error) {
+            console.log(error);
         }
     }
 
