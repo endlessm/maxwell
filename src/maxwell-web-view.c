@@ -52,6 +52,7 @@ typedef struct
   GQueue       *pixbufs;      /* List of PixbufData to handle maxwell:// requests */
   guint         pixbuf_count; /* Pixbuf counter, used as id */
   GCancellable *cancellable;  /* Global JavaScript cancellable */
+  gboolean      ignore_forall;
 } MaxwellWebViewPrivate;
 
 enum
@@ -737,7 +738,18 @@ maxwell_web_view_draw (GtkWidget *widget, cairo_t *cr)
   GList *l;
 
   if (gtk_cairo_should_draw_window (cr, window))
-    GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->draw (widget, cr);
+    {
+      /* Ignore GtkContainer default implementation
+       *
+       * WebkitWebView chain ups with GtkContainer::draw which breaks
+       * gtk_widget_draw() making it render offscreen children instead of the
+       * webview.
+       */
+      priv->ignore_forall = TRUE;
+      GTK_WIDGET_CLASS (maxwell_web_view_parent_class)->draw (widget, cr);
+      priv->ignore_forall = FALSE;
+      return FALSE;
+    }
 
   for (l = priv->children; l; l = g_list_next (l))
     {
@@ -874,6 +886,10 @@ maxwell_web_view_forall (GtkContainer *container,
   for (l = priv->children; l; l = g_list_next (l))
     {
       ChildData *data = l->data;
+
+      if (priv->ignore_forall && data->offscreen)
+        continue;
+
       (*callback) (data->child, callback_data);
     }
 }
